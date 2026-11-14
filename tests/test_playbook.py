@@ -103,6 +103,13 @@ async def test_failure_stops_downstream(engine_db, tmp_path):
     assert "fan" in (await get_campaign(cid))["result_reason"]
 
 
+async def test_unresolvable_ref_fails_campaign_cleanly(engine_db, tmp_path):
+    register(Echo("echo"))
+    cid = await _campaign(write_pb(tmp_path, LINEAR), repos=["r1"])  # no trigger.payload.user
+    assert await run_campaign(cid, "w1") == "failed"
+    assert "could not be materialized" in (await get_campaign(cid))["result_reason"]
+
+
 async def test_crash_mid_fan_out_resumes_without_duplicates(engine_db, tmp_path):
     e = register(Echo("echo"))
     cid = await _campaign(write_pb(tmp_path, LINEAR), user="u1", repos=["r1", "r2", "r3"])
