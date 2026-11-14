@@ -56,14 +56,21 @@ def check_chain(action: dict) -> list[str]:
 
 
 def was_recovered(action: dict) -> bool:
-    """True if the action was resolved after a crash rather than straight through."""
+    """True if the action was resolved after a crash: the engine asked lookup()
+    instead of trusting its own memory (reason "lookup: already landed, ...")."""
     for t in action.get("transitions") or []:
         reason = (t.get("reason") or "").lower()
-        if t.get("to") == "unknown" or t.get("from") == "unknown":
-            return True
         if any(word in reason for word in ("reconcil", "lookup", "recover")):
             return True
     return False
+
+
+def was_adapted(action: dict) -> bool:
+    """True if verify() could not tell and an on_unknown handler (slice C's model
+    mapping) proposed overrides that verify() was then re-run with."""
+    if action.get("adaptation"):
+        return True
+    return any("adaptation" in (t.get("reason") or "").lower() for t in action.get("transitions") or [])
 
 
 def layers_of(actions: list[dict]) -> dict[str, int]:
@@ -132,6 +139,8 @@ def build_report(campaign: dict, actions: list[dict]) -> dict[str, Any]:
                 "verified_at": a.get("verified_at"),
                 "created_at": a.get("created_at"),
                 "recovered": was_recovered(a),
+                "adapted": was_adapted(a),
+                "adaptation": a.get("adaptation"),
                 "chain_problems": problems,
             }
         )
@@ -146,6 +155,7 @@ def build_report(campaign: dict, actions: list[dict]) -> dict[str, Any]:
         "verified": verified,
         "open": sum(n for s, n in by_state.items() if s not in TERMINAL),
         "recovered": sum(n["recovered"] for n in nodes),
+        "adapted": sum(n["adapted"] for n in nodes),
         "transitions": sum(len(n["timeline"]) for n in nodes),
         "attempts": sum(len(n["attempts"]) for n in nodes),
         "chains_intact": broken == 0,

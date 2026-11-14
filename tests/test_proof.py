@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 
 from api.dashboard import to_json
-from api.proof import build_report, check_chain, layers_of, was_recovered
+from api.proof import build_report, check_chain, layers_of, was_adapted, was_recovered
 
 T0 = datetime(2026, 11, 14, 18, 0, 0, tzinfo=timezone.utc)
 
@@ -32,11 +32,27 @@ def test_happy_chain_is_intact():
     assert check_chain(action(["intended"])) == []
 
 
-def test_recovered_chain_is_intact_and_flagged():
-    a = action(["intended", "sent", "unknown", "verified"])
-    assert check_chain(a) == []
-    assert was_recovered(a) and not was_recovered(action(HAPPY))
-    assert was_recovered(action(HAPPY, reasons={"receipt": "reconciler: lookup found it"}))
+def test_recovered_means_resolved_by_lookup():
+    recovered = action(HAPPY, reasons={"receipt": "lookup: already landed, not re-executing"})  # the engine's reason
+    assert check_chain(recovered) == []
+    assert was_recovered(recovered) and not was_recovered(action(HAPPY))
+
+
+def test_adapted_is_not_the_same_as_recovered():
+    """A field rename goes receipt -> unknown -> verified after a proposed mapping.
+    Nothing crashed, so it must not be labelled as a crash recovery."""
+    renamed = action(
+        ["intended", "sent", "receipt", "unknown", "verified"],
+        reasons={"unknown": "verify could not tell", "verified": "verified after adaptation"},
+        adaptation={"strategy": "model_mapping", "overrides": {"expected_field": "conclusion"}},
+    )
+    assert check_chain(renamed) == []
+    assert was_adapted(renamed) and not was_recovered(renamed)
+    assert not was_adapted(action(HAPPY))
+
+    report = build_report({"_id": ObjectId()}, [renamed])
+    assert report["summary"]["adapted"] == 1 and report["summary"]["recovered"] == 0
+    assert report["nodes"][0]["adaptation"]["overrides"] == {"expected_field": "conclusion"}
 
 
 def test_tampered_histories_are_caught():
@@ -66,7 +82,7 @@ def test_layers_follow_depends_on():
 
 def test_report_summary_and_serialization():
     a = action(HAPPY, external_ref={"message_id": "<1@x>"}, observed={"copies": 1})
-    b = action(["intended", "sent", "unknown", "verified"], depends_on=[a["_id"]])
+    b = action(HAPPY, depends_on=[a["_id"]], reasons={"receipt": "lookup: already landed, not re-executing"})
     c = action(["intended", "sent"], depends_on=[b["_id"]])
     report = build_report({"_id": ObjectId(), "playbook": "rotate"}, [c, b, a])
 
