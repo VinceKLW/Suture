@@ -1,3 +1,296 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Incident Recovery</title></head>
-<body><!-- Owner: slice D. Vanilla HTML + fetch, no build step. --></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Incident Recovery Agent</title>
+<!-- Owner: slice D. Vanilla HTML + fetch + EventSource, no build step. -->
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #131824; --panel-2: #1a2030; --line: #252d40;
+    --text: #e6e9f0; --muted: #8b93a7; --accent: #6ea8fe;
+    --intended: #7c869c; --sent: #5aa2ff; --receipt: #f2b84b;
+    --verified: #3ecf8e; --unknown: #c084fc; --failed: #f26d6d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  .live { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--muted); }
+  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--failed); }
+  .live.on { color: var(--text); }
+  .live.on .dot { background: var(--verified); box-shadow: 0 0 0 0 rgba(62,207,142,.6); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(62,207,142,0); } 100% { box-shadow: 0 0 0 0 rgba(62,207,142,0); } }
+
+  main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 16px; padding: 16px 22px 28px; align-items: start; }
+  @media (max-width: 1150px) { main { grid-template-columns: 260px minmax(0, 1fr); } #feedPanel { grid-column: 1 / -1; } }
+  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 24px; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .panel > h2 { margin: 0; padding: 12px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .panel > h2 .count { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .empty { padding: 22px 14px; color: var(--muted); font-size: 13px; }
+
+  .campaign { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); color: inherit; font: inherit; padding: 11px 14px; cursor: pointer; }
+  .campaign:last-child { border-bottom: 0; }
+  .campaign:hover { background: var(--panel-2); }
+  .campaign.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
+  .campaign .top { display: flex; align-items: center; gap: 8px; }
+  .campaign .name { font-weight: 600; }
+  .campaign .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .bar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: var(--line); margin-top: 8px; }
+  .bar i { display: block; height: 100%; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .3px; border: 1px solid currentColor; white-space: nowrap; }
+  .s-intended { color: var(--intended); } .s-sent { color: var(--sent); } .s-receipt { color: var(--receipt); }
+  .s-verified { color: var(--verified); } .s-unknown { color: var(--unknown); } .s-failed { color: var(--failed); }
+  .s-running { color: var(--sent); } .s-succeeded { color: var(--verified); } .s-paused { color: var(--receipt); }
+  .bg-intended { background: var(--intended); } .bg-sent { background: var(--sent); } .bg-receipt { background: var(--receipt); }
+  .bg-verified { background: var(--verified); } .bg-unknown { background: var(--unknown); } .bg-failed { background: var(--failed); }
+  .badge.s-unknown { animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .45; } }
+
+  #detailHead { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  #detailHead .title { font-size: 16px; font-weight: 650; }
+  #detailHead .id { color: var(--muted); font-size: 12px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; min-width: 86px; }
+  .stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+
+  .action { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .action:last-child { border-bottom: 0; }
+  .action.flash { animation: flash 1.6s ease-out; }
+  @keyframes flash { 0% { background: rgba(110,168,254,.22); } 100% { background: transparent; } }
+  .action .op { font-weight: 600; }
+  .action .adapter { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .action .target { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .action .ids { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .trail { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .trail .step { font-size: 11px; padding: 1px 7px; border-radius: 5px; border: 1px solid currentColor; opacity: .75; }
+  .trail .step.now { opacity: 1; font-weight: 700; background: rgba(255,255,255,.05); }
+  .trail .arrow { color: var(--muted); font-size: 11px; }
+  .tag { font-size: 10.5px; padding: 1px 7px; border-radius: 5px; background: rgba(192,132,252,.15); color: var(--unknown); border: 1px solid rgba(192,132,252,.4); }
+
+  #feed { max-height: 70vh; overflow: auto; }
+  .event { padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
+  .event .time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .event .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event .who { grid-column: 2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Incident Recovery Agent</h1>
+    <div class="sub">Every action: intended → sent → receipt → verified. Nothing is trusted until it is read back.</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="live" id="live" title="MongoDB change stream → Server-Sent Events"><span class="dot"></span><span id="liveText">connecting…</span></div>
+</header>
+
+<main>
+  <section class="panel" id="campaignPanel">
+    <h2>Campaigns <span class="count" id="campaignCount"></span></h2>
+    <div id="campaigns"><div class="empty">No campaigns yet. Start one and it shows up here without a refresh.</div></div>
+  </section>
+
+  <section class="panel" id="detailPanel">
+    <h2>Action ledger</h2>
+    <div id="detail"><div class="empty">Select a campaign to see its actions.</div></div>
+  </section>
+
+  <section class="panel" id="feedPanel">
+    <h2>Live changes <span class="count" id="feedCount">0 events</span></h2>
+    <div id="feed"><div class="empty">Waiting for the first write…</div></div>
+  </section>
+</main>
+
+<script>
+const STATES = ["intended", "sent", "receipt", "verified", "unknown", "failed"];
+const campaigns = new Map();       // id -> campaign doc (with counts)
+const actions = new Map();         // campaign id -> Map(action id -> action doc)
+const flashedAt = new Map();       // action id -> ms timestamp of last live change
+const feed = [];
+let selected = null;
+let eventCount = 0;
+
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const cls = (state) => (STATES.includes(state) || ["running", "succeeded", "paused"].includes(state) ? state : "intended");
+const badge = (state) => `<span class="badge s-${cls(state)}">${esc(state || "?")}</span>`;
+const clock = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) + "." + String(new Date(iso).getMilliseconds()).padStart(3, "0") : "");
+const short = (id) => (id ? String(id).slice(-8) : "");
+
+function stepLabel(a) {
+  return a.step_id || a.step || (a.params && (a.params.step_id || a.params.step)) || a.operation || "action";
+}
+function targetLabel(a) {
+  const p = a.params || {};
+  const parts = [];
+  for (const key of ["repo", "to", "secret_name", "user", "key_id", "access_key_id", "title"]) {
+    if (p[key] !== undefined && p[key] !== null && p[key] !== "") parts.push(`${key}: ${Array.isArray(p[key]) ? p[key].join(", ") : p[key]}`);
+  }
+  return parts.join(" · ");
+}
+function countsOf(campaignId) {
+  const counts = {};
+  const map = actions.get(campaignId);
+  if (map) for (const a of map.values()) counts[a.state] = (counts[a.state] || 0) + 1;
+  else Object.assign(counts, (campaigns.get(campaignId) || {}).counts || {});
+  return counts;
+}
+function wasRecovered(a) {
+  return (a.transitions || []).some((t) => t.to === "unknown" || /reconcil|lookup|recover/i.test(t.reason || ""));
+}
+
+function renderCampaigns() {
+  const list = [...campaigns.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  $("campaignCount").textContent = list.length ? `${list.length}` : "";
+  if (!list.length) return;
+  $("campaigns").innerHTML = list.map((c) => {
+    const counts = countsOf(c._id);
+    const total = Object.values(counts).reduce((n, v) => n + v, 0);
+    const bar = STATES.filter((s) => counts[s]).map((s) => `<i class="bg-${s}" style="width:${(100 * counts[s]) / total}%" title="${s}: ${counts[s]}"></i>`).join("");
+    return `<button class="campaign ${c._id === selected ? "selected" : ""}" data-id="${esc(c._id)}">
+      <div class="top"><span class="name">${esc(c.playbook || c.kind)}</span>${badge(c.state)}</div>
+      <div class="meta">${esc(c.kind)} · ${total} action${total === 1 ? "" : "s"} · ${esc(clock(c.created_at).slice(0, 8))}</div>
+      <div class="bar">${bar}</div>
+    </button>`;
+  }).join("");
+}
+
+function renderDetail() {
+  const c = campaigns.get(selected);
+  if (!c) return;
+  const list = [...(actions.get(selected) || new Map()).values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a._id).localeCompare(String(b._id)));
+  const counts = countsOf(selected);
+  const recovered = list.filter(wasRecovered).length;
+  const now = Date.now();
+  const rows = list.map((a) => {
+    const trail = [];
+    const seen = a.transitions || [];
+    const path = seen.length ? [seen[0].from, ...seen.map((t) => t.to)] : [a.state];
+    path.forEach((s, i) => {
+      if (i) trail.push(`<span class="arrow">→</span>`);
+      trail.push(`<span class="step s-${cls(s)} ${i === path.length - 1 ? "now" : ""}" title="${esc(i ? clock(seen[i - 1].ts) + (seen[i - 1].reason ? " · " + seen[i - 1].reason : "") : "")}">${esc(s)}</span>`);
+    });
+    const flash = now - (flashedAt.get(a._id) || 0) < 1500 ? "flash" : "";
+    const last = seen.length ? seen[seen.length - 1] : null;
+    return `<div class="action ${flash}">
+      <div><span class="op">${esc(stepLabel(a))}</span><span class="adapter mono">${esc(a.adapter)}.${esc(a.operation)}</span>
+        <div class="target">${esc(targetLabel(a))}</div></div>
+      <div>${badge(a.state)}</div>
+      <div class="trail">${trail.join("")}${wasRecovered(a) ? ` <span class="tag">recovered, no re-send</span>` : ""}</div>
+      <div class="ids mono"><span>action ${esc(a._id)}</span><span>${(a.attempts || []).length} attempt${(a.attempts || []).length === 1 ? "" : "s"}</span>${last ? `<span>last ${esc(clock(last.ts))}${last.reason ? " · " + esc(last.reason) : ""}</span>` : ""}</div>
+    </div>`;
+  }).join("");
+  $("detail").innerHTML = `
+    <div id="detailHead">
+      <span class="title">${esc(c.playbook || c.kind)}</span>${badge(c.state)}
+      <span class="id mono">campaign ${esc(c._id)}</span>
+      <span class="spacer"></span>
+      <span id="detailLinks"></span>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>${list.length}</b><span>actions</span></div>
+      <div class="stat"><b class="s-verified">${counts.verified || 0}</b><span>verified</span></div>
+      <div class="stat"><b class="s-unknown">${counts.unknown || 0}</b><span>unknown</span></div>
+      <div class="stat"><b class="s-failed">${counts.failed || 0}</b><span>failed</span></div>
+      <div class="stat"><b>${recovered}</b><span>recovered</span></div>
+    </div>
+    ${rows || `<div class="empty">This campaign has no actions yet.</div>`}`;
+  if (typeof renderDetailLinks === "function") renderDetailLinks(c);
+}
+
+function renderFeed() {
+  $("feedCount").textContent = `${eventCount} event${eventCount === 1 ? "" : "s"}`;
+  if (!feed.length) return;
+  $("feed").innerHTML = feed.map((e) => `<div class="event">
+      <span class="time mono">${esc(clock(e.at))}</span>
+      <span class="what">${e.state ? badge(e.state) + " " : ""}${esc(e.what)}</span>
+      <span class="who mono">${esc(e.who)}</span>
+    </div>`).join("");
+}
+
+async function select(id) {
+  selected = id;
+  history.replaceState(null, "", `#${id}`);
+  renderCampaigns();
+  $("detail").innerHTML = `<div class="empty">Loading…</div>`;
+  await loadCampaign(id);
+}
+
+async function loadCampaign(id) {
+  const res = await fetch(`/api/campaigns/${encodeURIComponent(id)}`);
+  if (!res.ok) return;
+  const data = await res.json();
+  campaigns.set(id, { ...(campaigns.get(id) || {}), ...data.campaign });
+  actions.set(id, new Map(data.actions.map((a) => [a._id, a])));
+  if (selected === id) renderDetail();
+  renderCampaigns();
+}
+
+async function loadAll() {
+  const res = await fetch("/api/campaigns");
+  if (!res.ok) return;
+  const data = await res.json();
+  for (const c of data.campaigns) campaigns.set(c._id, { ...(campaigns.get(c._id) || {}), ...c });
+  renderCampaigns();
+  const wanted = location.hash.slice(1);
+  const first = campaigns.has(wanted) ? wanted : data.campaigns[0] && data.campaigns[0]._id;
+  if (first && (!selected || !campaigns.has(selected))) await select(first);
+  else if (selected) await loadCampaign(selected);
+}
+
+function onChange(e) {
+  eventCount += 1;
+  const doc = e.doc;
+  if (e.collection === "campaigns" && doc) {
+    const isNew = !campaigns.has(doc._id);
+    campaigns.set(doc._id, { ...(campaigns.get(doc._id) || {}), ...doc });
+    feed.unshift({ at: e.at, state: doc.state, what: `campaign ${e.op}: ${doc.playbook || doc.kind}`, who: doc._id });
+    if (isNew) select(doc._id);            // follow the newest campaign, like a live demo should
+    else if (doc._id === selected) renderDetail();
+  } else if (e.collection === "actions" && doc) {
+    const cid = doc.campaign_id;
+    if (!actions.has(cid)) actions.set(cid, new Map());
+    const known = actions.get(cid).get(doc._id);
+    actions.get(cid).set(doc._id, doc);
+    flashedAt.set(doc._id, Date.now());
+    const moved = known && known.state !== doc.state ? `${known.state} → ${doc.state}` : e.op === "insert" ? "planned" : `updated ${e.changed.join(", ")}`;
+    feed.unshift({ at: e.at, state: doc.state, what: `${stepLabel(doc)}: ${moved}`, who: `${doc.adapter} · …${short(doc._id)}` });
+    if (cid === selected) renderDetail();
+    if (!campaigns.has(cid)) loadAll();
+  }
+  feed.length = Math.min(feed.length, 80);
+  renderCampaigns();
+  renderFeed();
+}
+
+function setLive(on, text) {
+  $("live").classList.toggle("on", on);
+  $("liveText").textContent = text;
+}
+
+function connect() {
+  const source = new EventSource("/api/stream");
+  source.addEventListener("status", (m) => {
+    const s = JSON.parse(m.data);
+    setLive(s.connected, s.connected ? "live · change stream" : "change stream reconnecting…");
+  });
+  source.addEventListener("change", (m) => onChange(JSON.parse(m.data)));
+  source.onopen = () => loadAll();         // also re-syncs after a dropped connection
+  source.onerror = () => setLive(false, "reconnecting…");
+}
+
+$("campaigns").addEventListener("click", (ev) => {
+  const el = ev.target.closest(".campaign");
+  if (el) select(el.dataset.id);
+});
+connect();
+</script>
+</body>
+</html>
