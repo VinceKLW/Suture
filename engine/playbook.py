@@ -160,7 +160,10 @@ async def run_campaign(
         for dep in step.get("depends_on") or []:
             if not await run.settle(dep):
                 return await _fail(c["_id"], f"dependency {dep} has a failed action")
-        await run.materialize(step)
+        try:
+            await run.materialize(step)
+        except (KeyError, TypeError, ValueError) as e:  # unresolvable ${ref}, bad fan_out source...
+            return await _fail(c["_id"], f"step {step_id} could not be materialized: {e}")
         if not await run.settle(step_id):
             return await _fail(c["_id"], f"step {step_id} has a failed action")
 

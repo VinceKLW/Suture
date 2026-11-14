@@ -36,7 +36,7 @@ log = logging.getLogger("engine.worker")
 DEFAULT_SETUP = [
     "adapters.github_secrets:register_rotate_adapters",  # slice B: aws_iam, github_secrets, github_search
     "adapters.github_pr",                                # slice C: registers at import
-    "adapters.notify:register_notify_adapters",          # slice D
+    "adapters.notify",                                   # slice D: registers at import
     "experiences.engine_hooks:register",                 # slice C: experiences adapter + model_mapping handler
 ]
 
