@@ -4,205 +4,178 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>suture</title>
-<!-- Owner: slice D. Vanilla HTML + fetch + EventSource, no build step. Styled to DESIGN.md. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230D1210'/%3E%3Cg fill='none' stroke='%23F2F0EA' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='14' y='22' width='72' height='60' rx='14'/%3E%3Cpolyline points='26,52 74,52'/%3E%3Cpolyline points='36,43 36,61'/%3E%3Cpolyline points='50,43 50,61'/%3E%3Cpolyline points='64,43 64,61'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/suture.css">
+<!-- Owner: slice D. Vanilla HTML + fetch + EventSource, no build step. Design: DESIGN.md. -->
 <style>
-  :root {
-    /* DESIGN.md §10 */
-    --night: #060807;  --forest: #0D1210;  --moss: #141B18;
-    --hairline: rgba(255,255,255,.08);  --hairline-strong: rgba(255,255,255,.14);
-    --ink: #F2F0EA;  --sage: #969A94;  --fog: #62665F;
-    --amber: #E8A252;  --amber-soft: rgba(232,162,82,.12);  --dusk: #7FA7D9;
-    --state-intended: #6E746F;  --state-sent: #7FA7D9;  --state-receipt: #D9B26A;
-    --state-verified: #8DBF86;  --state-unknown: #6FB7B0;  --state-failed: #E0705C;
-    --font-text: "Geist", system-ui, sans-serif;
-    --font-mono: "Geist Mono", ui-monospace, monospace;
-    --r-sm: 6px;  --r-md: 12px;  --r-pill: 999px;
-    --ease: cubic-bezier(.2,.7,.2,1);  --dur: 300ms;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--night); color: var(--ink); font: 400 15px/1.55 var(--font-text); -webkit-font-smoothing: antialiased; }
-  .mono { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.45; }
-  .label { font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); }
-  :focus-visible { outline: 1px solid var(--dusk); outline-offset: 2px; }
-
-  /* one colour per state, always shown with the state's name */
-  .s-intended { --c: var(--state-intended); } .s-sent { --c: var(--state-sent); } .s-receipt { --c: var(--state-receipt); }
-  .s-verified { --c: var(--state-verified); } .s-unknown { --c: var(--state-unknown); } .s-failed { --c: var(--state-failed); }
-  .s-running { --c: var(--dusk); } .s-succeeded { --c: var(--state-verified); } .s-paused { --c: var(--state-receipt); }
-
-  header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--hairline); background: var(--night); position: sticky; top: 0; z-index: 5; }
-  header svg { width: 32px; height: 32px; flex: none; color: var(--ink); }
-  header .wordmark { font-size: 28px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; padding-bottom: 3px; }  /* x-height about half the mark */
-  header .sub { color: var(--sage); font-size: 13px; line-height: 1.45; max-width: 76ch; margin-left: 12px; }
-  .spacer { flex: 1; }
-  .live { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid var(--hairline); border-radius: var(--r-pill); font-size: 13px; color: var(--sage); white-space: nowrap; }
-  .live .detail { margin-left: -8px; white-space: pre; }
-  .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fog); }
-  .live.on .dot { background: var(--state-verified); animation: breathe-half 2.4s var(--ease) infinite alternate; }
-  @keyframes breathe-half { to { opacity: .5; } }
-  @keyframes breathe { to { opacity: .55; } }
-
-  main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 16px; padding: 16px 24px 48px; align-items: start; }
-  @media (max-width: 1150px) { main { grid-template-columns: 264px minmax(0, 1fr); } #feedPanel { grid-column: 1 / -1; } }
-  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 32px; } header { padding: 12px 16px; } .live .detail { display: none; } }
-  @media (max-width: 1150px) { header .sub { display: none; } }
-  .stack { display: grid; gap: 16px; min-width: 0; }
-  .panel { background: var(--forest); border: 1px solid var(--hairline); border-radius: var(--r-md); overflow: hidden; min-width: 0; }
-  .panel > .phead { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
-  .panel > .phead h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; }
-  .panel > .phead .meta { margin-left: auto; color: var(--fog); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .note { padding: 16px 20px; color: var(--sage); font-size: 13px; line-height: 1.45; }
-  .empty { padding: 48px 24px; }
-  .empty .title { font: 400 32px/1.15 var(--font-text); letter-spacing: -.01em; color: var(--sage); }
-  .empty .line { margin-top: 12px; color: var(--sage); font-size: 13px; line-height: 1.45; }
-
-  .badge { display: inline-block; padding: 1px 8px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.5; font-weight: 500; white-space: nowrap;
-    color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); background: color-mix(in srgb, var(--c) 8%, transparent); }
-  .badge.active { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, transparent); background: var(--amber-soft); }
-  .badge.s-unknown { animation: breathe 2.4s var(--ease) infinite alternate; }
-  .badge.changed { animation: fade var(--dur) var(--ease); }
-  @keyframes fade { from { opacity: 0; } }
-  .tag { display: inline-block; padding: 0 8px; border-radius: var(--r-sm); font: 400 12px/1.6 var(--font-text); color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); white-space: nowrap; }
-  .tag.recovered { --c: var(--dusk); } .tag.adapted { --c: var(--state-unknown); }
-
-  .campaign { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--hairline); border-left: 2px solid transparent; color: inherit; font: inherit; padding: 12px 20px 12px 18px; cursor: pointer; transition: background var(--dur) var(--ease); }
-  .campaign:last-child { border-bottom: 0; }
-  .campaign:hover, .campaign.selected { background: var(--moss); }
-  .campaign.selected { border-left-color: var(--sage); }
-  .campaign .top { display: flex; align-items: center; gap: 8px; }
-  .campaign .name { font-weight: 500; }
-  .campaign .cap { color: var(--fog); font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .bar { display: flex; gap: 2px; height: 2px; margin-top: 8px; }
-  .bar i { display: block; height: 100%; background: var(--c); }
-
-  .band { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; padding: 20px; border-bottom: 1px solid var(--hairline); }
-  .band .who { min-width: 0; margin-right: auto; }
-  .band .name { display: flex; align-items: center; gap: 8px; font-size: 20px; line-height: 1.3; font-weight: 500; }
-  .band .cid { color: var(--fog); margin-top: 4px; overflow-wrap: anywhere; }
-  .band .links { margin-top: 8px; font-size: 13px; }
-  a.link { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--fog); text-underline-offset: 3px; transition: text-decoration-color var(--dur) var(--ease); }
-  a.link:hover { text-decoration-color: var(--amber); }
-  .stats { display: flex; justify-content: flex-end; margin-left: auto; }
-  .stat { padding: 0 16px; border-left: 1px solid var(--hairline); text-align: right; }
-  .stat:first-child { border-left: 0; padding-left: 0; } .stat:last-child { padding-right: 0; }
-  .stat b { display: block; font: 400 32px/1 var(--font-text); font-variant-numeric: tabular-nums; color: var(--ink); }
-  .stat .label { display: block; margin-top: 8px; }
+  /* App shell: the panels never move relative to the photo, so liquid glass stays aligned. */
+  html.glass-liquid, html.glass-liquid body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 16px; padding: 16px; }
+  .col { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 16px; min-height: 0; }
+  .panel { min-height: 0; }
+  #comparePanel { max-height: 34vh; }
+  html.glass-lite main { grid-template-columns: 280px minmax(0, 1fr); }
+  html.glass-lite #feedPanel { grid-column: 1 / -1; }
+  html.glass-lite .panel { max-height: none; }
+  html.glass-lite .scroll { max-height: 70vh; }
+  html.glass-lite #comparePanel { max-height: none; }
   @media (max-width: 760px) {
-    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 0; width: 100%; margin-left: 0; }
-    .stat, .stat:first-child, .stat:last-child { text-align: left; padding: 0 12px; }
-    .stat:nth-child(3n + 1) { border-left: 0; padding-left: 0; }
+    main, html.glass-lite main { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+    .topbar { margin: 12px 12px 0; } .topbar .tagline { display: none; }
+    .action .adapter { display: block; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ledger-head .stats { margin-left: 0; width: 100%; justify-content: space-between; }
+    .ledger-head .stat { border-left: 0; padding: 0; text-align: left; }
+    .ledger-head .stat b { font-size: 20px; }
+    .ledger-head .stat span { letter-spacing: .08em; }
   }
 
-  .action { padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
-  .action:last-child { border-bottom: 0; }
-  .action.new { animation: rise var(--dur) var(--ease), lit 1.2s ease-out; }
-  @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
-  @keyframes lit { from { background: var(--amber-soft); } }
-  .action .ahead { display: flex; align-items: baseline; gap: 8px; }
+  /* campaigns */
+  .campaign { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--hairline); color: inherit; font: inherit;
+    padding: 14px 20px; cursor: pointer; position: relative; transition: background-color var(--dur) var(--ease); }
+  .campaign:hover { background: rgba(20,27,24,.55); }
+  .campaign.selected { background: var(--amber-soft); }
+  .campaign.selected::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: var(--amber); }
+  .campaign .top { display: flex; align-items: center; gap: 8px; }
+  .campaign .name { font-weight: 500; font-size: 15px; }
+  .campaign .meta { color: var(--sage); font-size: 13px; margin-top: 2px; }
+  .bar { display: flex; gap: 2px; height: 3px; margin-top: 10px; }
+  .bar i { display: block; height: 100%; border-radius: 2px; background: var(--c); }
+
+  /* ledger */
+  .ledger-head { padding: 18px 20px 16px; border-bottom: 1px solid var(--hairline); display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; }
+  .ledger-head .title { font-size: 20px; line-height: 1.3; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+  .ledger-head .id { color: var(--fog); margin-top: 4px; }
+  .ledger-head .stats { margin-left: auto; }
+  .action { padding: 16px 20px 14px; border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .action > div:first-child { min-width: 0; }
   .action .op { font-weight: 500; }
-  .action .adapter { color: var(--fog); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .action .ahead .badge { margin-left: auto; }
-  .action .target { color: var(--sage); font-size: 13px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .action .ids { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--fog); }
+  .action .adapter { color: var(--fog); margin-left: 8px; }
+  .action .target { color: var(--sage); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .action .right { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+  .action .seam { grid-column: 1 / -1; margin-top: 8px; }
+  .action .ids { grid-column: 1 / -1; color: var(--fog); display: flex; flex-wrap: wrap; gap: 2px 16px; margin-top: 4px; }
 
-  /* seam timeline: one line crossed by a short stitch per state, like the logo;
-     a crash is a gap in the line, then the same line resumes */
-  .thread { display: flex; margin: 16px 0 12px; padding-left: 8px; }
-  .tstep { position: relative; flex: 1 1 0; min-width: 0; max-width: 112px; padding-top: 20px; }
-  .tstep .dot { position: absolute; top: 0; left: 0; width: 2px; height: 13px; border-radius: 1px; background: var(--hairline-strong); }
-  .tstep.reached .dot { background: var(--c); }
-  .tstep.current .dot { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
-  .tstep.current.s-unknown .dot { animation: breathe 2.4s var(--ease) infinite alternate; }
-  .tstep .seg, .tstep .seg::after, .tstep .end { position: absolute; top: 6px; height: 1px; background: var(--hairline); }
-  .tstep .seg { left: calc(1px - 100%); width: 100%; transform-origin: left; }
-  .tstep .end { width: 8px; }                      /* the seam runs a little past its first and last stitch */
-  .tstep .end.lead { left: -8px; background: var(--hairline-strong); }
-  .tstep .end.tail { left: 1px; }
-  .tstep.reached .end.tail { background: var(--hairline-strong); }
-  .tstep.reached .seg { background: var(--hairline-strong); }
-  .tstep.gap .seg { width: 40%; }
-  .tstep.gap .seg::after { content: ""; top: 0; left: 150%; width: 100%; background: var(--hairline-strong); }
-  .tstep.draw .seg { animation: draw var(--dur) var(--ease); }
-  @keyframes draw { from { transform: scaleX(0); } }
-  .tstep .tname { display: block; font-size: 12px; line-height: 1.45; color: var(--fog); }
-  .tstep.reached .tname { color: var(--c); }
-  .tstep .tts { display: block; color: var(--fog); font-size: 11.5px; overflow: hidden; text-overflow: clip; white-space: nowrap; }
-
-  .btn { margin-left: auto; font: 400 13px/1.45 var(--font-text); color: var(--ink); background: var(--moss); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; transition: border-color var(--dur) var(--ease); }
-  .btn:hover, .btn:focus-visible { border-color: var(--amber); outline: 0; }
-  .btn:disabled { color: var(--fog); cursor: default; }
+  /* comparison */
   .compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .side { min-width: 0; padding: 16px 20px 20px; }
+  .side { min-width: 0; padding: 12px 0 16px; }
   .side + .side { border-left: 1px solid var(--hairline); }
-  @media (max-width: 760px) { .compare { grid-template-columns: minmax(0, 1fr); } .side + .side { border-left: 0; border-top: 1px solid var(--hairline); } }
-  .side .sub { margin: 8px 0 12px; color: var(--sage); font-size: 13px; line-height: 1.45; }
-  .effect { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; line-height: 1.45; color: var(--sage); }
+  .side h3 { margin: 0; padding: 0 20px 4px; font-size: 15px; font-weight: 500; }
+  .side h3 .note { color: var(--fog); font-weight: 400; font-size: 13px; margin-left: 6px; }
+  .side .sub { padding: 0 20px 8px; color: var(--sage); font-size: 13px; }
+  .effect { display: flex; align-items: baseline; gap: 8px; padding: 4px 20px; font-size: 13px; color: var(--sage); }
   .effect .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .effect .n { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .effect.dup, .effect.dup .n { color: var(--state-failed); }
-  .verdict { margin-top: 12px; padding: 8px 12px; border-left: 2px solid var(--c, var(--fog)); background: var(--moss); border-radius: 0 var(--r-sm) var(--r-sm) 0; font-size: 13px; line-height: 1.45; color: var(--ink); }
+  .effect .note { color: var(--fog); }
+  .effect .n { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .effect.dup .n, .effect.dup .name { color: var(--state-failed); }
+  .side .verdict { margin: 10px 20px 0; }
+  .side .empty { padding: 8px 20px; }
+  @media (max-width: 760px) { .compare { grid-template-columns: minmax(0, 1fr); } .side + .side { border-left: 0; border-top: 1px solid var(--hairline); } }
 
-  #feed { max-height: 70vh; overflow: auto; }
-  .event { padding: 8px 20px; border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 12px; font-size: 13px; line-height: 1.45; }
-  .event:last-child { border-bottom: 0; }
+
+  /* chaos panel */
+  .chaos { padding: 14px 20px 18px; display: grid; gap: 12px; }
+  .chaos-state { color: var(--sage); font-size: 13px; }
+  .chaos-state b { color: var(--ink); font-weight: 500; }
+  .chaos-buttons { display: grid; gap: 8px; }
+  .chaos-btn { --c: var(--sage); display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 10px; text-align: left; font: inherit;
+    color: var(--ink); background: rgba(20,27,24,.6); border: 1px solid var(--hairline-strong); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer;
+    transition: border-color var(--dur) var(--ease), opacity var(--dur) var(--ease); }
+  .chaos-btn i { grid-row: span 2; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .chaos-btn span { font-size: 14px; }
+  .chaos-btn small { grid-column: 2; color: var(--fog); font-size: 12px; }
+  .chaos-btn:hover:not(:disabled), .chaos-btn:focus-visible { border-color: var(--c); outline: none; }
+  .chaos-btn:disabled { cursor: default; opacity: .45; }
+  .chaos-btn.cooling { opacity: .6; }
+  .sev-high { --c: var(--state-failed); } .sev-mid { --c: var(--amber); } .sev-low { --c: var(--state-receipt); }
+  .chaos-last { font-size: 13px; color: var(--sage); border-top: 1px solid var(--hairline); padding-top: 10px; }
+  .chaos-last b { color: var(--ink); font-weight: 500; }
+
+  /* feed */
+  .event { padding: 10px 20px; border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; font-size: 13px; }
   .event .time { color: var(--fog); }
-  .event .what { color: var(--sage); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sage); }
+  .event .what .badge { margin-right: 6px; }
   .event .who { grid-column: 2; color: var(--fog); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
-<header>
-  <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <rect x="14" y="22" width="72" height="60" rx="14"/><polyline points="26,52 74,52"/><polyline points="36,43 36,61"/><polyline points="50,43 50,61"/><polyline points="64,43 64,61"/>
-  </svg>
-  <div class="wordmark">suture</div>
-  <div class="sub">Each action moves intended → sent → receipt → verified. It reaches verified only after verify() reads the effect back from the external system.</div>
-  <div class="spacer"></div>
-  <div class="live" id="live" title="MongoDB change stream → Server-Sent Events"><span class="dot"></span><span id="liveText">Connecting</span><span class="detail" id="liveDetail"></span></div>
+<div class="bg" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="glass topbar">
+  <div class="glass-content">
+    <a class="brand" href="/"><img src="/static/logo.svg" alt=""><span class="word">suture</span></a>
+    <span class="tagline">Finishes the job, even after a crash.</span>
+    <span class="spacer"></span>
+    <span class="live" id="live" title="MongoDB change stream to Server-Sent Events"><span class="dot"></span><span id="liveText">Connecting</span></span>
+  </div>
 </header>
 
 <main>
-  <section class="panel" id="campaignPanel">
-    <div class="phead"><h2>Campaigns</h2><span class="meta" id="campaignCount"></span></div>
-    <div id="campaigns"><div class="note">None yet.</div></div>
+  <div class="col">
+  <section class="glass panel" id="campaignPanel">
+    <div class="glass-content">
+      <div class="panel-head"><div><div class="kicker">Campaigns</div><h2>Incidents</h2></div><span class="count" id="campaignCount"></span></div>
+      <div class="scroll" id="campaigns"><div class="empty"><div class="t">No campaigns yet.</div><div class="s">A new one appears here the moment it's created.</div></div></div>
+    </div>
   </section>
 
-  <div class="stack">
-    <section class="panel" id="detailPanel">
-      <div class="phead"><h2>Action ledger</h2></div>
-      <div id="detail"><div class="empty"><div class="title">No campaigns yet.</div><div class="line">A new one appears here as soon as it is created.</div></div></div>
+  <section class="glass panel" id="chaosPanel" hidden>
+    <div class="glass-content">
+      <div class="panel-head"><div><div class="kicker">Chaos</div><h2>Break something.</h2></div></div>
+      <div class="chaos">
+        <div class="chaos-state" id="chaosState">No campaign running.</div>
+        <button class="btn" id="chaosStart" type="button">Start a campaign</button>
+        <div class="chaos-buttons">
+          <button class="chaos-btn sev-high" data-chaos="kill-worker" type="button" disabled><i></i><span>Kill a worker</span><small>dies after its next call lands</small></button>
+          <button class="chaos-btn sev-mid" data-chaos="rename-field" type="button" disabled><i></i><span>Rename a field</span><small>GitHub returns conclusion, not status</small></button>
+          <button class="chaos-btn sev-low" data-chaos="add-consumer" type="button" disabled><i></i><span>Add a consumer</span><small>another repo holds the old key</small></button>
+        </div>
+        <div class="chaos-last" id="chaosLast">Last trigger: none yet.</div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <div class="col">
+    <section class="glass panel" id="detailPanel">
+      <div class="glass-content">
+        <div class="scroll" id="detail"><div class="empty big"><div class="t">Pick a campaign.</div><div class="s">Its actions and every state they reached show up here.</div></div></div>
+      </div>
     </section>
 
-    <section class="panel" id="comparePanel">
-      <div class="phead"><h2>Crash comparison</h2><button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></div>
-      <div class="compare">
-        <div class="side" id="naiveSide"><div class="label">Naive retry · no ledger</div><div class="sub">Not run yet. The baseline keeps no record of what it already did, so after a crash it restarts from step one.</div></div>
-        <div class="side" id="ledgerSide"><div class="label">Ledger · this campaign</div><div class="sub">Select a campaign.</div></div>
+    <section class="glass panel" id="comparePanel">
+      <div class="glass-content">
+        <div class="panel-head"><div><div class="kicker">Same crash, two runs</div><h2>Naive retry vs. the ledger</h2></div>
+          <span class="spacer"></span><button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></div>
+        <div class="scroll compare">
+          <div class="side" id="naiveSide"><h3>Naive retry</h3><div class="empty"><div class="s">Not run yet. It keeps no record of what it did, so after a crash it starts over.</div></div></div>
+          <div class="side" id="ledgerSide"><h3>Ledger</h3><div class="empty"><div class="s">Pick a campaign.</div></div></div>
+        </div>
       </div>
     </section>
   </div>
 
-  <section class="panel" id="feedPanel">
-    <div class="phead"><h2>Live changes</h2><span class="meta" id="feedCount">0 events</span></div>
-    <div id="feed"><div class="note">No writes yet. Changes to campaigns and actions appear here as they happen.</div></div>
+  <section class="glass panel" id="feedPanel">
+    <div class="glass-content">
+      <div class="panel-head"><div><div class="kicker">Change stream</div><h2>Live changes</h2></div><span class="count" id="feedCount">0 events</span></div>
+      <div class="scroll" id="feed"><div class="empty"><div class="t">Quiet.</div><div class="s">Every write to campaigns and actions lands here.</div></div></div>
+    </div>
   </section>
 </main>
 
+<script src="/static/glass.js"></script>
 <script>
 const STATES = ["intended", "sent", "receipt", "verified", "unknown", "failed"];
-const IN_FLIGHT = ["sent", "receipt", "unknown"];
-// the states an action still has ahead of it, drawn as unlit stitches on its seam
-const AHEAD = { intended: ["sent", "receipt", "verified"], sent: ["receipt", "verified"], receipt: ["verified"], unknown: ["verified"] };
+const TERMINAL = new Set(["verified", "failed"]);
 const campaigns = new Map();       // id -> campaign doc (with counts)
 const actions = new Map();         // campaign id -> Map(action id -> action doc)
-const changedAt = new Map();       // action id -> ms timestamp of last live state change
-const bornAt = new Map();          // action id -> ms timestamp it first arrived live
+const flashedAt = new Map();       // action id -> ms timestamp of last live change
+const seenRows = new Set();        // action ids already drawn (for the arrive animation)
 const feed = [];
 let selected = null;
 let eventCount = 0;
@@ -210,11 +183,10 @@ let eventCount = 0;
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const cls = (state) => (STATES.includes(state) || ["running", "succeeded", "paused"].includes(state) ? state : "intended");
-const badge = (state, extra = "") => `<span class="badge s-${cls(state)} ${extra}">${esc(state || "?")}</span>`;
+const badge = (state, now) => `<span class="badge s-${cls(state)} ${now ? "now" : ""}">${esc(state || "?")}</span>`;
 const clock = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) + "." + String(new Date(iso).getMilliseconds()).padStart(3, "0") : "");
 const short = (id) => (id ? String(id).slice(-8) : "");
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const recoveryReason = (reason) => /reconcil|lookup|recover/i.test(reason || "");
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 function stepLabel(a) {
   return a.step_id || a.step || (a.params && (a.params.step_id || a.params.step)) || a.operation || "action";
@@ -234,11 +206,21 @@ function countsOf(campaignId) {
   else Object.assign(counts, (campaigns.get(campaignId) || {}).counts || {});
   return counts;
 }
-function wasRecovered(a) {   // resolved after a crash: the engine asked lookup() instead of re-sending
-  return (a.transitions || []).some((t) => recoveryReason(t.reason));
-}
-function wasAdapted(a) {     // verify() could not tell; a proposed mapping was applied and verify() re-run
-  return Boolean(a.adaptation) || (a.transitions || []).some((t) => /adaptation/i.test(t.reason || ""));
+const recoveryStep = (t) => /reconcil|lookup|recover/i.test(t.reason || "");
+function wasRecovered(a) { return (a.transitions || []).some(recoveryStep); }
+function wasAdapted(a) { return Boolean(a.adaptation) || (a.transitions || []).some((t) => /adaptation/i.test(t.reason || "")); }
+
+// One line, a stitch per state reached. The current (in-flight) state is amber.
+// A transition resolved by lookup() after a crash is drawn as a gap in the line.
+function seam(a) {
+  const ts = a.transitions || [];
+  const path = ts.length ? [{ s: ts[0].from, t: a.created_at }, ...ts.map((t) => ({ s: t.to, t: t.ts, gap: recoveryStep(t), reason: t.reason }))] : [{ s: a.state, t: a.created_at }];
+  const live = !TERMINAL.has(a.state);
+  return `<div class="seam" role="list" aria-label="State history">${path.map((p, i) => {
+    const now = live && i === path.length - 1;
+    return `<div class="stitch s-${cls(p.s)} ${now ? "now" : ""} ${p.gap ? "gap" : ""}" role="listitem" title="${esc(p.reason || "")}">
+      ${p.gap ? `<span class="gapnote">crash</span>` : ""}<i></i><b>${esc(p.s)}</b><time>${esc(clock(p.t))}</time></div>`;
+  }).join("")}</div>`;
 }
 
 function renderCampaigns() {
@@ -248,33 +230,13 @@ function renderCampaigns() {
   $("campaigns").innerHTML = list.map((c) => {
     const counts = countsOf(c._id);
     const total = Object.values(counts).reduce((n, v) => n + v, 0);
-    const bar = STATES.filter((s) => counts[s]).map((s) => `<i class="s-${s}" style="width:${(100 * counts[s]) / total}%" title="${s}: ${counts[s]}"></i>`).join("");
+    const bar = STATES.filter((s) => counts[s]).map((s) => `<i class="s-${s}" style="flex:${counts[s]}" title="${s}: ${counts[s]}"></i>`).join("");
     return `<button class="campaign ${c._id === selected ? "selected" : ""}" data-id="${esc(c._id)}">
-      <div class="top"><span class="name">${esc(c.playbook || c.kind)}</span>${badge(c.state)}</div>
-      <div class="cap">${esc(c.kind)} · ${plural(total, "action")} · ${esc(clock(c.created_at).slice(0, 8))}</div>
+      <div class="top"><span class="name">${esc(c.playbook || c.kind)}</span><span class="spacer"></span>${badge(c.state)}</div>
+      <div class="meta">${esc(c.kind)} · ${plural(total, "action")} · <span class="num">${esc(clock(c.created_at).slice(0, 8))}</span></div>
       <div class="bar">${bar}</div>
     </button>`;
   }).join("");
-}
-
-// One stitch per state the action has been in, then unlit stitches for the states still ahead.
-function thread(a, justChanged) {
-  const seen = a.transitions || [];
-  const steps = [{ state: seen.length ? seen[0].from : a.state, ts: a.created_at, reached: true }];
-  for (const t of seen) steps.push({ state: t.to, ts: t.ts, reason: t.reason, reached: true, gap: recoveryReason(t.reason) });
-  const lastReached = steps.length - 1;
-  for (const s of AHEAD[a.state] || []) steps.push({ state: s, reached: false });
-  return `<div class="thread">${steps.map((s, i) => {
-    const classes = ["tstep", `s-${cls(s.state)}`];
-    if (s.reached) classes.push("reached");
-    if (i === lastReached && IN_FLIGHT.includes(a.state)) classes.push("current");
-    if (s.gap) classes.push("gap");
-    if (i === lastReached && justChanged) classes.push("draw");
-    const tip = s.reached && i ? `${clock(s.ts)}${s.reason ? " · " + s.reason : ""}` : "";
-    const ends = `${i ? "" : `<span class="end lead"></span>`}${i === steps.length - 1 ? `<span class="end tail"></span>` : ""}`;
-    return `<div class="${classes.join(" ")}" title="${esc(tip)}">${i ? `<span class="seg"></span>` : ""}${ends}<span class="dot"></span>
-      <span class="tname">${esc(s.state)}</span><span class="tts mono">${s.reached ? esc(clock(s.ts).slice(0, 8)) : "&nbsp;"}</span></div>`;
-  }).join("")}</div>`;
 }
 
 function renderDetail() {
@@ -282,71 +244,75 @@ function renderDetail() {
   if (!c) return;
   const list = [...(actions.get(selected) || new Map()).values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a._id).localeCompare(String(b._id)));
   const counts = countsOf(selected);
+  const recovered = list.filter(wasRecovered).length;
   const now = Date.now();
+  const firstOpen = list.find((a) => !TERMINAL.has(a.state));
   const rows = list.map((a) => {
-    const justChanged = now - (changedAt.get(a._id) || 0) < 500;
-    const isNew = now - (bornAt.get(a._id) || 0) < 1300;
-    const seen = a.transitions || [];
-    const last = seen.length ? seen[seen.length - 1] : null;
-    const attempts = (a.attempts || []).length;
-    return `<div class="action ${isNew ? "new" : ""}">
-      <div class="ahead"><span class="op">${esc(stepLabel(a))}</span><span class="adapter mono">${esc(a.adapter)}.${esc(a.operation)}</span>
-        ${badge(a.state, `${IN_FLIGHT.includes(a.state) ? "active" : ""} ${justChanged ? "changed" : ""}`)}</div>
-      <div class="target">${esc(targetLabel(a))}</div>
-      ${thread(a, justChanged)}
-      <div class="ids mono"><span>action ${esc(a._id)}</span><span>${plural(attempts, "attempt")}</span>${last && last.reason ? `<span>${esc(last.reason)}</span>` : ""}
-        ${wasRecovered(a) ? `<span class="tag recovered">recovered, no re-send</span>` : ""}${wasAdapted(a) ? `<span class="tag adapted">adapted, then re-verified</span>` : ""}</div>
+    const flash = now - (flashedAt.get(a._id) || 0) < 1200 ? "flash" : "";
+    const arrive = seenRows.has(a._id) ? "" : "arrive";
+    seenRows.add(a._id);
+    const ts = a.transitions || [];
+    const last = ts.length ? ts[ts.length - 1] : null;
+    const n = (a.attempts || []).length;
+    return `<div class="action ${flash} ${arrive}">
+      <div><span class="op">${esc(stepLabel(a))}</span><span class="adapter mono">${esc(a.adapter)}.${esc(a.operation)}</span>
+        <div class="target">${esc(targetLabel(a))}</div></div>
+      <div class="right">${wasRecovered(a) ? `<span class="tag">recovered, not re-sent</span>` : ""}${wasAdapted(a) ? `<span class="tag adapt">adapted, re-verified</span>` : ""}${badge(a.state, a === firstOpen)}</div>
+      ${seam(a)}
+      <div class="ids mono"><span>action ${esc(a._id)}</span><span>${plural(n, "attempt")}</span>${last && last.reason ? `<span>${esc(last.reason)}</span>` : ""}</div>
     </div>`;
   }).join("");
-  const stats = [[list.length, "Actions"], [counts.verified || 0, "Verified"], [counts.unknown || 0, "Unknown"], [counts.failed || 0, "Failed"], [list.filter(wasRecovered).length, "Recovered"]];
   $("detail").innerHTML = `
-    <div class="band">
-      <div class="who">
-        <div class="name">${esc(c.playbook || c.kind)} ${badge(c.state)}</div>
-        <div class="cid mono">campaign ${esc(c._id)}</div>
-        <div class="links"><a class="link" href="/proof/${encodeURIComponent(c._id)}">Proof view</a></div>
+    <div class="ledger-head">
+      <div>
+        <div class="kicker">Action ledger</div>
+        <div class="title">${esc(c.playbook || c.kind)} ${badge(c.state)}</div>
+        <div class="id mono">campaign ${esc(c._id)} · <a class="link" href="/proof/${encodeURIComponent(c._id)}">Proof view</a></div>
       </div>
-      <div class="stats">${stats.map(([n, label]) => `<div class="stat"><b>${n}</b><span class="label">${label}</span></div>`).join("")}</div>
+      <div class="stats small">
+        <div class="stat"><b>${list.length}</b><span>actions</span></div>
+        <div class="stat"><b>${counts.verified || 0}</b><span>verified</span></div>
+        <div class="stat"><b>${counts.unknown || 0}</b><span>unknown</span></div>
+        <div class="stat"><b>${counts.failed || 0}</b><span>failed</span></div>
+        <div class="stat"><b>${recovered}</b><span>recovered</span></div>
+      </div>
     </div>
-    ${rows || `<div class="note">This campaign has no actions yet.</div>`}`;
+    ${rows || `<div class="empty"><div class="t">No actions yet.</div><div class="s">They appear as the runner reaches each step.</div></div>`}`;
   renderLedgerSide(list);
 }
 
-// ---- naive baseline vs the ledger (demo step 13) ---------------------------
+// ---- naive baseline vs the ledger -----------------------------------------
 let naive = null;
 
 function renderLedgerSide(list) {
-  const head = `<div class="label">Ledger · this campaign</div>`;
-  if (!list.length) { $("ledgerSide").innerHTML = `${head}<div class="sub">This campaign has no actions yet.</div>`; return; }
   const done = list.filter((a) => a.state !== "intended");
+  if (!list.length) { $("ledgerSide").innerHTML = `<h3>Ledger</h3><div class="empty"><div class="s">This campaign has no actions yet.</div></div>`; return; }
   const sends = (a) => (a.transitions || []).filter((t) => t.from === "intended" && t.to === "sent").length;
   const extra = done.reduce((n, a) => n + Math.max(sends(a) - 1, 0), 0);
   const recovered = done.filter(wasRecovered).length;
-  const open = list.filter((a) => !["verified", "failed"].includes(a.state)).length;
+  const open = list.filter((a) => !TERMINAL.has(a.state)).length;
   const rows = done.map((a) => `<div class="effect ${sends(a) > 1 ? "dup" : ""}">
-      <span class="name">${esc(stepLabel(a))}${a.item_key ? `:${esc(a.item_key)}` : ""}</span>
-      ${wasRecovered(a) ? `<span class="tag recovered">recovered</span>` : ""}
-      <span class="n">x${sends(a)}</span>
+      <span class="name">${esc(stepLabel(a))}${targetLabel(a) ? ` <span class="note">${esc(targetLabel(a))}</span>` : ""}</span>
+      <span class="n">×${sends(a)}</span>
     </div>`).join("");
   const verdict = extra
-    ? `<div class="verdict s-failed">${plural(extra, "action")} sent more than once</div>`
+    ? `<div class="verdict bad"><span class="big">${plural(extra, "action")} sent twice.</span></div>`
     : open
-      ? `<div class="verdict s-sent">0 duplicate sends so far · ${plural(open, "action")} still in progress</div>`
-      : `<div class="verdict s-verified">0 duplicate sends${recovered ? ` · ${recovered} crash${recovered === 1 ? "" : "es"} resolved by lookup()` : ""}</div>`;
-  $("ledgerSide").innerHTML = `${head}
-    <div class="sub">Each action is sent once, stamped with its action id. Counts are the intended → sent transitions recorded in MongoDB.</div>
-    ${rows || `<div class="sub">Nothing sent yet.</div>`}${verdict}`;
+      ? `<div class="verdict wait"><span class="big">0 duplicates so far.</span><span class="why">${open} still in progress.</span></div>`
+      : `<div class="verdict ok"><span class="big">0 duplicates.</span><span class="why">${recovered ? `${plural(recovered, "crash")} resolved by lookup(), nothing re-sent.` : "Every action sent once."}</span></div>`;
+  $("ledgerSide").innerHTML = `<h3>Ledger <span class="note">this campaign</span></h3>
+    <div class="sub">Each action goes out once, stamped with its action id.</div>
+    ${rows || `<div class="empty"><div class="s">Nothing sent yet.</div></div>`}${verdict}`;
 }
 
 function renderNaiveSide() {
   if (!naive) return;
   const rows = naive.effects.map((e) => `<div class="effect ${e.duplicates ? "dup" : ""}">
-      <span class="name">${esc(e.id)}</span>
-      <span class="n">x${e.count}</span>
+      <span class="name">${esc(e.id)}</span><span class="n">×${e.count}</span>
     </div>`).join("");
-  $("naiveSide").innerHTML = `<div class="label">Naive retry · no ledger</div>
-    <div class="sub">Crashed after <span class="mono">${esc(naive.crash_after || "nothing")}</span>, then restarted from step one. ${naive.total_calls} external calls; a correct run makes ${naive.expected_calls}.</div>
-    ${rows}<div class="verdict ${naive.duplicates ? "s-failed" : "s-verified"}">${esc(naive.verdict)}</div>`;
+  $("naiveSide").innerHTML = `<h3>Naive retry <span class="note">no ledger</span></h3>
+    <div class="sub">Crashed after <span class="mono">${esc(naive.crash_after || "nothing")}</span>, restarted from step one. ${naive.total_calls} calls; a correct run makes ${naive.expected_calls}.</div>
+    ${rows}<div class="verdict ${naive.duplicates ? "bad" : "ok"}"><span class="big">${esc(naive.verdict)}</span></div>`;
 }
 
 async function runNaive() {
@@ -361,18 +327,18 @@ async function runNaive() {
 function renderFeed() {
   $("feedCount").textContent = plural(eventCount, "event");
   if (!feed.length) return;
-  $("feed").innerHTML = feed.map((e) => `<div class="event">
+  $("feed").innerHTML = feed.map((e, i) => `<div class="event ${i === 0 && e.fresh ? "arrive" : ""}">
       <span class="time mono">${esc(clock(e.at))}</span>
-      <span class="what">${e.state ? badge(e.state) + " " : ""}${esc(e.what)}</span>
+      <span class="what">${e.state ? badge(e.state) : ""}${esc(e.what)}</span>
       <span class="who mono">${esc(e.who)}</span>
     </div>`).join("");
+  feed.forEach((e) => (e.fresh = false));
 }
 
 async function select(id) {
   selected = id;
   history.replaceState(null, "", `#${id}`);
   renderCampaigns();
-  $("detail").innerHTML = `<div class="note">Loading.</div>`;
   await loadCampaign(id);
 }
 
@@ -381,7 +347,9 @@ async function loadCampaign(id) {
   if (!res.ok) return;
   const data = await res.json();
   campaigns.set(id, { ...(campaigns.get(id) || {}), ...data.campaign });
+  const fresh = !actions.has(id);
   actions.set(id, new Map(data.actions.map((a) => [a._id, a])));
+  if (fresh) data.actions.forEach((a) => seenRows.add(a._id)); // don't animate a page load
   if (selected === id) renderDetail();
   renderCampaigns();
 }
@@ -404,18 +372,17 @@ function onChange(e) {
   if (e.collection === "campaigns" && doc) {
     const isNew = !campaigns.has(doc._id);
     campaigns.set(doc._id, { ...(campaigns.get(doc._id) || {}), ...doc });
-    feed.unshift({ at: e.at, state: doc.state, what: `Campaign ${e.op === "insert" ? "opened" : "updated"}: ${doc.playbook || doc.kind}`, who: doc._id });
-    if (isNew) select(doc._id);            // follow the newest campaign, like a live demo should
+    feed.unshift({ at: e.at, state: doc.state, what: `campaign ${e.op}: ${doc.playbook || doc.kind}`, who: doc._id, fresh: true });
+    if (isNew) select(doc._id);            // follow the newest campaign
     else if (doc._id === selected) renderDetail();
   } else if (e.collection === "actions" && doc) {
     const cid = doc.campaign_id;
     if (!actions.has(cid)) actions.set(cid, new Map());
     const known = actions.get(cid).get(doc._id);
     actions.get(cid).set(doc._id, doc);
-    if (!known) bornAt.set(doc._id, Date.now());
-    if (known && known.state !== doc.state) changedAt.set(doc._id, Date.now());
+    flashedAt.set(doc._id, Date.now());
     const moved = known && known.state !== doc.state ? `${known.state} → ${doc.state}` : e.op === "insert" ? "planned" : `updated ${e.changed.join(", ")}`;
-    feed.unshift({ at: e.at, state: doc.state, what: `${stepLabel(doc)}: ${moved}`, who: `${doc.adapter} · …${short(doc._id)}` });
+    feed.unshift({ at: e.at, state: doc.state, what: `${stepLabel(doc)}: ${moved}`, who: `${doc.adapter} · …${short(doc._id)}`, fresh: true });
     if (cid === selected) renderDetail();
     if (!campaigns.has(cid)) loadAll();
   }
@@ -424,17 +391,16 @@ function onChange(e) {
   renderFeed();
 }
 
-function setLive(on, text, detail = "") {
+function setLive(on, text) {
   $("live").classList.toggle("on", on);
   $("liveText").textContent = text;
-  $("liveDetail").textContent = detail;   // hidden on narrow screens
 }
 
 function connect() {
   const source = new EventSource("/api/stream");
   source.addEventListener("status", (m) => {
     const s = JSON.parse(m.data);
-    setLive(s.connected, s.connected ? "Live" : "Reconnecting", " · change stream");
+    setLive(s.connected, s.connected ? "Live" : "Change stream reconnecting");
   });
   source.addEventListener("change", (m) => onChange(JSON.parse(m.data)));
   source.onopen = () => loadAll();         // also re-syncs after a dropped connection
@@ -446,6 +412,65 @@ $("campaigns").addEventListener("click", (ev) => {
   const el = ev.target.closest(".campaign");
   if (el) select(el.dataset.id);
 });
+
+// ---- chaos panel ------------------------------------------------------------
+const CHAOS_LABEL = { "kill-worker": "Kill a worker", "rename-field": "Rename a field", "add-consumer": "Add a consumer" };
+let chaos = { running: false, campaign_id: null };
+const cooling = new Set();
+
+function renderChaos() {
+  const on = chaos.running;
+  $("chaosState").innerHTML = on
+    ? `Running <b>incident</b> as <span class="mono">${esc(chaos.worker)}</span>${chaos.kills ? ` · ${plural(chaos.kills, "worker")} killed` : ""}`
+    : "No campaign running.";
+  $("chaosStart").hidden = on;
+  document.querySelectorAll(".chaos-btn").forEach((b) => { b.disabled = !on || cooling.has(b.dataset.chaos); });
+  if (chaos.last) {
+    $("chaosLast").innerHTML = `Last trigger: <b>${esc(CHAOS_LABEL[chaos.last.triggered] || chaos.last.triggered)}</b> at <span class="num">${esc(clock(chaos.last.at).slice(0, 8))}</span>`
+      + (chaos.last.repo ? ` · <span class="mono">${esc(chaos.last.repo)}</span>` : "");
+  }
+}
+
+async function pollChaos() {
+  try {
+    const res = await fetch("/api/chaos");
+    if (res.ok) {
+      const s = await res.json();
+      const enabled = s.enabled && new URLSearchParams(location.search).get("chaos") !== "0";
+      $("chaosPanel").hidden = !enabled;
+      if (!$("chaosPanel").hidden && window.SutureGlass) SutureGlass.scan();
+      chaos = { ...chaos, ...s, last: s.last || chaos.last };
+      renderChaos();
+    }
+  } catch (_) { /* server restarting */ }
+}
+
+async function fireChaos(name) {
+  cooling.add(name);
+  renderChaos();
+  setTimeout(() => { cooling.delete(name); renderChaos(); }, 3000);   // no spamming
+  const res = await fetch(`/api/chaos/${name}`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ campaign_id: chaos.campaign_id }) });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) chaos.last = data;
+  else $("chaosLast").textContent = `Last trigger: ${CHAOS_LABEL[name]} refused (${data.error || res.status}).`;
+  renderChaos();
+}
+
+$("chaosStart").addEventListener("click", async () => {
+  $("chaosStart").disabled = true;
+  try {
+    const res = await fetch("/api/chaos/start", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) { chaos.last = null; $("chaosLast").textContent = "Last trigger: none yet."; await pollChaos(); }
+  } finally { $("chaosStart").disabled = false; }
+});
+document.querySelector(".chaos-buttons").addEventListener("click", (ev) => {
+  const b = ev.target.closest(".chaos-btn");
+  if (b && !b.disabled) fireChaos(b.dataset.chaos);
+});
+pollChaos();
+setInterval(pollChaos, 1500);
 connect();
 </script>
 </body>

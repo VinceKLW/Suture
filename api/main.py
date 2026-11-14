@@ -4,8 +4,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from api import dashboard, proof
+from api import chaos, dashboard, proof
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
@@ -20,6 +21,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="suture", lifespan=lifespan)
 app.include_router(dashboard.router)
 app.include_router(proof.router)
+app.include_router(chaos.router)
+app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")  # design system, glass, photo
 
 
 @app.get("/health")
