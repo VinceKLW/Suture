@@ -87,6 +87,17 @@ register(MyAdapter())
 - Canonical operation names (rotate): `find_secret_consumers`, `create_access_key`, `update_secret`,
   `delete_access_key`.
 
+## Campaign triggers per playbook (refs are strict: a missing field fails the campaign)
+```python
+await create_campaign("rotate", kind="leaked_key", trigger={"payload": {"access_key_id": ..., "user": ...}})
+await create_campaign("fix", kind="ci_broken",
+                      trigger={"repo": ..., "head_sha": ..., "ci_result": "success", "failure_text": ...})
+await create_campaign("notify", trigger={"summary": ...}, config={"owner_email": ...})
+```
+Registered adapters / hooks (`engine/worker.py:DEFAULT_SETUP`): rotate (slice B), `github_pr`,
+`experiences` + `model_mapping` (`experiences.engine_hooks:register`), `notify_email` (spool mailbox
+when MailHog isn't running). Integration tests: `tests/test_integration_*.py`.
+
 ## Gotchas
 - `pytest.ini` uses a session-scoped event loop; the pymongo async client is bound to it.
 - Action docs without `step_id` are fine (the unique `(campaign_id, step_id, item_key)` index is partial).
