@@ -36,13 +36,28 @@
   #dag .edge { fill: none; stroke: var(--hairline-strong); stroke-width: 1; }
   #dag .edge.hot { stroke: var(--amber); }
 
+  /* Receipts: one collapsible row per action. Collapsed: what it is and where it ended up.
+     Open: every transition, attempt and receipt. */
   .evidence { border-bottom: 1px solid var(--hairline); scroll-margin-top: 24px; transition: background-color var(--dur) var(--ease); }
+  .evidence:last-child { border-bottom: 0; }
   .evidence.focus { background: var(--amber-soft); }
-  .evidence .head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 24px 24px 10px; }
+  .evidence > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start;
+    gap: 4px 12px; padding: 18px 24px 14px; transition: background-color var(--dur) var(--ease); }
+  .evidence > summary::-webkit-details-marker { display: none; }
+  .evidence > summary:hover { background: rgba(20,27,24,.45); }
+  .evidence > summary:focus-visible { outline: 1px solid var(--dusk); outline-offset: -1px; }
+  .evidence .chev { width: 20px; height: 20px; margin-top: 1px; color: var(--fog); transition: transform var(--dur) var(--ease), color var(--dur) var(--ease); }
+  .evidence > summary:hover .chev { color: var(--ink); }
+  .evidence[open] .chev { transform: rotate(90deg); color: var(--amber); }
+  .evidence .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
   .evidence .head .op { font-weight: 500; font-size: 15px; }
   .evidence .head .adapter { color: var(--fog); }
-  .evidence .head .aid { margin-left: auto; color: var(--fog); }
-  .evidence .seam { padding: 6px 24px 10px; }
+  .evidence .aid { color: var(--fog); white-space: nowrap; padding-top: 2px; }
+  .evidence .seam { grid-column: 2 / -1; padding: 8px 0 2px; }
+  .evidence .hint { grid-column: 2 / -1; color: var(--fog); font-size: 12px; }
+  .evidence[open] .hint { display: none; }
+  .evidence .body { animation: arrive 300ms var(--ease) both; border-top: 1px solid var(--hairline); margin: 0 0 4px 32px; }
+  @media (max-width: 760px) { .evidence > summary { padding: 16px; } .evidence .aid { display: none; } .evidence .body { margin-left: 0; } }
   .evidence .body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
   @media (max-width: 900px) { .evidence .body { grid-template-columns: minmax(0, 1fr); } }
   .evidence .colx { padding: 10px 24px 24px; min-width: 0; }
@@ -104,7 +119,7 @@
 
   <section class="glass panel" id="evidencePanel">
     <div class="glass-content">
-      <div class="panel-head"><div><div class="kicker">Receipts</div><h2>Every transition, every check</h2></div><span class="count" id="evCount"></span></div>
+      <div class="panel-head"><div><div class="kicker">Receipts</div><h2>Every transition, every check</h2></div><span class="count" id="evCount"></span><button class="btn-ghost" id="toggleAll" type="button">Expand all</button></div>
       <div class="scroll" id="cards"></div>
     </div>
   </section>
@@ -218,16 +233,22 @@ function renderCards(report, current) {
       </tr>`).join("");
     const attempts = n.attempts.length ? `<h3>Attempts</h3><table class="timeline">${n.attempts.map((a) => `<tr><td class="ts mono">${esc(stamp(a.ts))}</td><td class="mono" style="color:var(--sage)">${esc(a.worker_id)}</td><td class="reason">${esc(a.outcome)}</td></tr>`).join("")}</table>` : "";
     const problems = n.chain_problems.length ? `<h3>History check</h3><ul class="problems">${n.chain_problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
-    return `<article class="evidence ${n.id === current ? "focus" : ""}" id="a-${esc(n.id)}">
+    const isOpen = openIds.has(n.id);
+    const summaryLine = `${plural(n.timeline.length, "transition")} · ${plural(n.attempts.length, "attempt")}${hasKeys(n.verify_receipt) ? " · verify receipt" : ""}${hasKeys(n.adaptation) ? " · mapping" : ""}`;
+    return `<details class="evidence ${n.id === current ? "focus" : ""}" id="a-${esc(n.id)}" data-id="${esc(n.id)}" ${isOpen ? "open" : ""}>
+      <summary>
+      <svg class="chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l5 5-5 5"/></svg>
       <div class="head">
         <span class="op">${esc(n.label)}</span><span class="adapter mono">${esc(n.adapter)}.${esc(n.operation)}</span>
         ${badge(n.state, n.id === current && !TERMINAL.has(n.state))}
         ${n.recovered ? `<span class="tag">recovered, not re-sent</span>` : ""}
         ${n.adapted ? `<span class="tag adapt">adapted, re-verified</span>` : ""}
         ${n.chain_problems.length ? `<span class="tag bad">history broken</span>` : ""}
-        <span class="aid mono">action_id ${esc(n.id)}</span>
       </div>
+      <span class="aid mono">…${esc(n.id.slice(-8))}</span>
       ${seam(n, current)}
+      <span class="hint">${summaryLine}</span>
+      </summary>
       <div class="body">
         <div class="colx">
           <h3>State transitions</h3>
@@ -241,11 +262,32 @@ function renderCards(report, current) {
           <h3>External reference</h3>
           ${hasKeys(n.external_ref) ? `<pre class="mono">${pretty(n.external_ref)}</pre>` : `<div class="none">None recorded.</div>`}
           ${hasKeys(n.params) ? `<h3>Parameters</h3><pre class="mono">${pretty(n.params)}</pre>` : ""}
+          <h3>Action id</h3><div class="mono" style="color:var(--sage)">${esc(n.id)}</div>
         </div>
       </div>
-    </article>`;
+    </details>`;
   }).join("");
+  syncToggle();
 }
+
+// Which receipts are open survives live re-renders.
+const openIds = new Set();
+function syncToggle() {
+  const all = [...document.querySelectorAll(".evidence")];
+  $("toggleAll").hidden = !all.length;
+  $("toggleAll").textContent = all.length && all.every((d) => d.open) ? "Collapse all" : "Expand all";
+}
+$("cards").addEventListener("toggle", (ev) => {
+  const d = ev.target;
+  if (!d.matches || !d.matches(".evidence")) return;
+  d.open ? openIds.add(d.dataset.id) : openIds.delete(d.dataset.id);
+  syncToggle();
+}, true);
+$("toggleAll").addEventListener("click", () => {
+  const all = [...document.querySelectorAll(".evidence")];
+  const open = !all.every((d) => d.open);
+  all.forEach((d) => { d.open = open; });
+});
 
 async function load() {
   const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/proof`);
@@ -272,6 +314,7 @@ $("dag").addEventListener("click", (ev) => {
   const card = $(`a-${node.dataset.id}`);
   if (!card) return;
   card.classList.add("focus");
+  card.open = true;
   // Scroll only the receipts panel: moving the page would slide the glass off its photo.
   const box = $("cards");
   if (getComputedStyle(box).overflowY === "auto" && box.scrollHeight > box.clientHeight) {
