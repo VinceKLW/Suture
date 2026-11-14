@@ -58,3 +58,6 @@ steps:
       solution_text: "${recall_experience.result.top.solution_text}"
       metadata:
         repo: "${campaign.trigger.repo}"
+        edits: "${draft_pr.result.edits}"   # carry the file change forward so future recalls
+                                             # of this promoted experience can also drive a
+                                             # real PR, not only the seeded one
