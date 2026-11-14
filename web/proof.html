@@ -4,141 +4,201 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Proof view · suture</title>
-<!-- Owner: slice D. Vanilla HTML + fetch + inline SVG, no build step. Served at /proof/<campaign_id>. -->
+<!-- Owner: slice D. Vanilla HTML + fetch + inline SVG, no build step. Served at /proof/<campaign_id>. Styled to DESIGN.md. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230D1210'/%3E%3Cg fill='none' stroke='%23F2F0EA' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='14' y='22' width='72' height='60' rx='14'/%3E%3Cpolyline points='26,52 74,52'/%3E%3Cpolyline points='36,43 36,61'/%3E%3Cpolyline points='50,43 50,61'/%3E%3Cpolyline points='64,43 64,61'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
 <style>
   :root {
-    --bg: #0b0e14; --panel: #131824; --panel-2: #1a2030; --line: #252d40;
-    --text: #e6e9f0; --muted: #8b93a7; --accent: #6ea8fe;
-    --intended: #7c869c; --sent: #5aa2ff; --receipt: #f2b84b;
-    --verified: #3ecf8e; --unknown: #c084fc; --failed: #f26d6d;
+    /* DESIGN.md §10 */
+    --night: #060807;  --forest: #0D1210;  --moss: #141B18;
+    --hairline: rgba(255,255,255,.08);  --hairline-strong: rgba(255,255,255,.14);
+    --ink: #F2F0EA;  --sage: #969A94;  --fog: #62665F;
+    --amber: #E8A252;  --amber-soft: rgba(232,162,82,.12);  --dusk: #7FA7D9;
+    --state-intended: #6E746F;  --state-sent: #7FA7D9;  --state-receipt: #D9B26A;
+    --state-verified: #8DBF86;  --state-unknown: #6FB7B0;  --state-failed: #E0705C;
+    --font-text: "Geist", system-ui, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, monospace;
+    --r-sm: 6px;  --r-md: 12px;  --r-pill: 999px;
+    --ease: cubic-bezier(.2,.7,.2,1);  --dur: 300ms;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel); }
-  header a { color: var(--accent); text-decoration: none; font-size: 13px; }
-  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
-  header .id { color: var(--muted); font-size: 12px; }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 22px 40px; }
-  @media (max-width: 760px) { .wrap { padding: 14px 16px 32px; } }
+  body { margin: 0; background: var(--night); color: var(--ink); font: 400 15px/1.55 var(--font-text); -webkit-font-smoothing: antialiased; }
+  .mono { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.45; }
+  .label { font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); }
+  :focus-visible { outline: 1px solid var(--dusk); outline-offset: 2px; }
 
-  .verdict { border-radius: 12px; padding: 14px 18px; border: 1px solid var(--line); background: var(--panel); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
-  .verdict .big { font-size: 17px; font-weight: 650; }
-  .verdict.ok { border-color: rgba(62,207,142,.5); background: rgba(62,207,142,.08); }
-  .verdict.ok .big { color: var(--verified); }
-  .verdict.bad { border-color: rgba(242,109,109,.5); background: rgba(242,109,109,.08); }
-  .verdict.bad .big { color: var(--failed); }
-  .verdict .why { color: var(--muted); font-size: 13px; }
+  .s-intended { --c: var(--state-intended); } .s-sent { --c: var(--state-sent); } .s-receipt { --c: var(--state-receipt); }
+  .s-verified { --c: var(--state-verified); } .s-unknown { --c: var(--state-unknown); } .s-failed { --c: var(--state-failed); }
+  .s-running { --c: var(--dusk); } .s-succeeded { --c: var(--state-verified); } .s-paused { --c: var(--state-receipt); }
 
-  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 18px; }
-  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; min-width: 104px; }
-  .stat b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
-  .stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+  header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--hairline); background: var(--night); }
+  header .brand { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+  header svg { width: 32px; height: 32px; flex: none; }
+  header .wordmark { font-size: 28px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; padding-bottom: 3px; }  /* x-height about half the mark */
+  .spacer { flex: 1; }
+  a.link { color: var(--ink); font-size: 13px; text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--fog); text-underline-offset: 3px; transition: text-decoration-color var(--dur) var(--ease); }
+  a.link:hover { text-decoration-color: var(--amber); }
 
-  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); margin: 22px 0 8px; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-  #dag { overflow-x: auto; padding: 10px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 24px 64px; }
+  @media (max-width: 760px) { .wrap { padding: 32px 16px 48px; } header { padding: 12px 16px; } }
+
+  .hero { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 32px 48px; }
+  .hero .lede { flex: 1 1 420px; min-width: 0; }
+  .hero .kicker { display: flex; align-items: center; gap: 8px; }
+  .hero h1 { margin: 16px 0 0; font: 400 clamp(32px, 4.6vw, 64px)/1.05 var(--font-text); letter-spacing: -.02em; color: var(--ink); }
+  .hero .why { margin: 16px 0 0; max-width: 62ch; color: var(--sage); }
+  .hero .cid { margin-top: 12px; color: var(--fog); overflow-wrap: anywhere; }
+  .stats { display: flex; justify-content: flex-end; margin-left: auto; }
+  .stat { padding: 0 16px; border-left: 1px solid var(--hairline); text-align: right; }
+  .stat:first-child { border-left: 0; padding-left: 0; } .stat:last-child { padding-right: 0; }
+  .stat b { display: block; font: 400 32px/1 var(--font-text); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+  .stat .label { display: block; margin-top: 8px; }
+  @media (max-width: 760px) {
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 0; width: 100%; margin-left: 0; }
+    .stat, .stat:first-child, .stat:last-child { text-align: left; padding: 0 12px; }
+    .stat:nth-child(3n + 1) { border-left: 0; padding-left: 0; }
+  }
+
+  h2.section { margin: 48px 0 16px; font-size: 20px; line-height: 1.3; font-weight: 500; }
+  .panel { background: var(--forest); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+  .note { color: var(--sage); font-size: 13px; line-height: 1.45; }
+
+  .badge { display: inline-block; padding: 1px 8px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.5; font-weight: 500; white-space: nowrap;
+    color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); background: color-mix(in srgb, var(--c) 8%, transparent); }
+  .badge.active { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, transparent); background: var(--amber-soft); }
+  .badge.s-unknown { animation: breathe 2.4s var(--ease) infinite alternate; }
+  @keyframes breathe { to { opacity: .55; } }
+  .tag { display: inline-block; padding: 0 8px; border-radius: var(--r-sm); font: 400 12px/1.6 var(--font-text); color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); white-space: nowrap; }
+  .tag.recovered { --c: var(--dusk); } .tag.adapted { --c: var(--state-unknown); } .tag.broken { --c: var(--state-failed); }
+
+  /* proof DAG: forest cards with a 2px state edge, hairline curves, amber into the current node */
+  #dag { overflow-x: auto; }
   #dag svg { display: block; width: 100%; height: auto; min-width: 860px; }
   #dag .node { cursor: pointer; }
-  #dag .node rect { fill: var(--panel-2); stroke-width: 1.5; }
-  #dag .node:hover rect { fill: #222a3d; }
-  #dag .node .t1 { fill: var(--text); font-size: 12.5px; font-weight: 600; }
-  #dag .node .t2 { fill: var(--muted); font-size: 10.5px; }
-  #dag .node .t3 { font-size: 10.5px; font-weight: 700; }
-  #dag .edge { fill: none; stroke: #3a4560; stroke-width: 1.5; }
+  #dag .node .card { fill: var(--forest); stroke: var(--hairline); stroke-width: 1; transition: fill var(--dur) var(--ease); }
+  #dag .node:hover .card, #dag .node:focus-visible .card { fill: var(--moss); }
+  #dag .node .edge-mark { stroke: var(--c); stroke-width: 2; stroke-linecap: round; }
+  #dag .node .t1 { fill: var(--ink); font: 500 13px var(--font-text); }
+  #dag .node .t2 { fill: var(--fog); font: 400 11.5px var(--font-mono); }
+  #dag .node .t3 { fill: var(--c); font: 400 12px var(--font-text); }
+  #dag .edge { fill: none; stroke: var(--hairline-strong); stroke-width: 1; }
+  #dag .edge.current { stroke: var(--amber); }
 
-  .s-intended { color: var(--intended); } .s-sent { color: var(--sent); } .s-receipt { color: var(--receipt); }
-  .s-verified { color: var(--verified); } .s-unknown { color: var(--unknown); } .s-failed { color: var(--failed); }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
-  .tag { font-size: 10.5px; padding: 1px 7px; border-radius: 5px; background: rgba(192,132,252,.15); color: var(--unknown); border: 1px solid rgba(192,132,252,.4); }
-  .tag.bad { background: rgba(242,109,109,.12); color: var(--failed); border-color: rgba(242,109,109,.4); }
-  .tag.adapt { background: rgba(90,162,255,.13); color: var(--sent); border-color: rgba(90,162,255,.45); }
+  .card { margin-bottom: 16px; scroll-margin-top: 16px; transition: border-color var(--dur) var(--ease); }
+  .card.focus { border-color: var(--hairline-strong); background: var(--moss); }
+  .card .chead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
+  .card .chead .op { font-size: 20px; line-height: 1.3; font-weight: 500; }
+  .card .chead .adapter { color: var(--fog); }
+  .card .chead .aid { margin-left: auto; color: var(--fog); overflow-wrap: anywhere; }
+  .card .cbody { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+  .card .col { padding: 20px; min-width: 0; }
+  .card .col + .col { border-left: 1px solid var(--hairline); }
+  @media (max-width: 860px) { .card .cbody { grid-template-columns: minmax(0, 1fr); } .card .col + .col { border-left: 0; border-top: 1px solid var(--hairline); } }
+  .card .label { display: block; margin-bottom: 12px; }
+  .card .label:not(:first-child) { margin-top: 24px; }
 
-  .card { margin-bottom: 12px; scroll-margin-top: 12px; }
-  .card.focus { border-color: var(--accent); }
-  .card .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-  .card .head .op { font-weight: 650; font-size: 15px; }
-  .card .head .adapter { color: var(--muted); font-size: 12px; }
-  .card .head .aid { margin-left: auto; color: var(--muted); font-size: 12px; }
-  .card .body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0; }
-  @media (max-width: 860px) { .card .body { grid-template-columns: minmax(0, 1fr); } }
-  .card .col { padding: 12px 16px; min-width: 0; }
-  .card .col + .col { border-left: 1px solid var(--line); }
-  @media (max-width: 860px) { .card .col + .col { border-left: 0; border-top: 1px solid var(--line); } }
-  .card h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-  .card h3:not(:first-child) { margin-top: 14px; }
+  /* seam timeline, vertical: one line crossed by a short stitch per state, like the logo;
+     a crash is a gap in the line, then the same line resumes */
+  .vthread { list-style: none; margin: 0; padding: 8px 0; position: relative; }
+  .vstep { position: relative; padding: 0 0 16px 28px; }
+  .vstep:last-child { padding-bottom: 0; }
+  .vstep .dot { position: absolute; left: 0; top: 10px; width: 13px; height: 2px; border-radius: 1px; background: var(--c); }
+  .vstep.current .dot { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
+  .vstep.current.s-unknown .dot { animation: breathe 2.4s var(--ease) infinite alternate; }
+  .vstep:not(:last-child)::after, .vstep .resume, .vstep:first-child::before, .vstep:last-child::after { content: ""; position: absolute; left: 6px; width: 1px; background: var(--hairline-strong); }
+  .vstep:not(:last-child)::after { top: 11px; bottom: -11px; }
+  .vstep:first-child::before { top: 3px; height: 8px; }      /* the seam runs a little past its first and last stitch */
+  .vstep:last-child::after { top: 11px; height: 8px; }
+  .vstep.cut:not(:last-child)::after { bottom: auto; height: 38%; }
+  .vstep .resume { bottom: -11px; height: 38%; }
+  .vstep .move { color: var(--sage); }
+  .vstep .move b { font-weight: 500; color: var(--c); }
+  .vstep .reason { color: var(--sage); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+  .vstep .when { color: var(--fog); font-size: 11.5px; }
 
-  table.timeline { border-collapse: collapse; width: 100%; font-size: 12.5px; table-layout: fixed; }
-  table.timeline col.c-ts { width: 104px; } table.timeline col.c-move { width: 150px; } table.timeline col.c-dt { width: 78px; }
-  table.timeline td { padding: 4px 8px 4px 0; vertical-align: top; }
-  table.timeline td.ts { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  table.timeline td.dt { color: var(--muted); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
-  table.timeline td.reason { color: var(--muted); overflow-wrap: anywhere; }
-  pre { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
-  .none { color: var(--muted); font-size: 12.5px; }
-  .problems { margin: 0; padding-left: 18px; color: var(--failed); font-size: 12.5px; }
-  .empty { padding: 26px 16px; color: var(--muted); }
+  .rows { font-size: 13px; line-height: 1.45; color: var(--sage); }
+  .rows div { display: flex; flex-wrap: wrap; gap: 0 12px; padding: 2px 0; }
+  .rows .when { color: var(--fog); }
+  .problems { margin: 0; padding-left: 16px; color: var(--state-failed); font-size: 13px; line-height: 1.45; }
+  pre { margin: 0; padding: 12px; background: var(--night); border: 1px solid var(--hairline); border-radius: var(--r-sm); color: var(--sage); overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 <header>
-  <a href="/">← Dashboard</a>
-  <h1 id="title">Proof view</h1>
-  <span class="id mono" id="cid"></span>
+  <a class="brand" href="/" aria-label="suture, dashboard">
+    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="14" y="22" width="72" height="60" rx="14"/><polyline points="26,52 74,52"/><polyline points="36,43 36,61"/><polyline points="50,43 50,61"/><polyline points="64,43 64,61"/>
+    </svg>
+    <span class="wordmark">suture</span>
+  </a>
+  <div class="spacer"></div>
+  <a class="link" href="/">Dashboard</a>
 </header>
+
 <div class="wrap">
-  <div id="verdict" class="verdict"><span class="big">Loading…</span></div>
-  <div class="stats" id="stats"></div>
-  <h2>Dependency graph</h2>
-  <div class="panel" id="dag"><div class="empty">Loading…</div></div>
-  <h2>Action history and receipts</h2>
-  <div id="cards"></div>
+  <section class="hero">
+    <div class="lede">
+      <div class="kicker"><span class="label" id="kicker">Proof</span><span id="state"></span></div>
+      <h1 id="headline">Loading.</h1>
+      <p class="why" id="why"></p>
+      <div class="cid mono" id="cid"></div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <div id="body"></div>
 </div>
 
 <script>
 const campaignId = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
-const COLORS = { intended: "#7c869c", sent: "#5aa2ff", receipt: "#f2b84b", verified: "#3ecf8e", unknown: "#c084fc", failed: "#f26d6d" };
+const STATES = ["intended", "sent", "receipt", "verified", "unknown", "failed", "running", "succeeded", "paused"];
+const IN_FLIGHT = ["sent", "receipt", "unknown"];
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const cls = (s) => (STATES.includes(s) ? s : "intended");
 const stamp = (iso) => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0"); };
-const badge = (s) => `<span class="badge s-${COLORS[s] ? s : "intended"}">${esc(s)}</span>`;
+const badge = (s, extra = "") => `<span class="badge s-${cls(s)} ${extra}">${esc(s)}</span>`;
 const pretty = (v) => esc(JSON.stringify(v, null, 2));
 const hasKeys = (v) => v && typeof v === "object" && Object.keys(v).length > 0;
 const clip = (text, n) => (String(text).length > n ? String(text).slice(0, n - 1) + "…" : String(text));
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const recoveryReason = (reason) => /reconcil|lookup|recover/i.test(reason || "");
 
-function renderVerdict(report) {
-  const s = report.summary;
-  const el = $("verdict");
-  let klass = "", big = "", why = "";
-  if (!s.actions) { big = "No actions recorded yet"; why = "No actions have been created for this campaign."; }
-  else if (!s.chains_intact) { klass = "bad"; big = "Ledger inconsistency found"; why = `${s.broken_chains} action(s) have a history that is not a legal path through the state machine.`; }
-  else if (s.by_state.failed) { klass = "bad"; big = `${s.by_state.failed} action(s) failed`; why = `Failed: ${report.nodes.filter((n) => n.state === "failed").map((n) => n.label).join(", ")}.`; }
-  else if (s.all_verified) { klass = "ok"; big = `All ${s.actions} actions independently verified`; why = `${s.transitions} fenced transitions. Each action's recorded history is an unbroken, legal path to its current state${s.recovered ? `; ${s.recovered} recovered after a crash without re-sending` : ""}${s.adapted ? `; ${s.adapted} verified after a proposed mapping` : ""}.`; }
-  else { big = `${s.verified} of ${s.actions} actions verified`; why = `${s.open} still in progress. This page updates as the ledger changes.`; }
-  el.className = `verdict ${klass}`;
-  el.innerHTML = `<span class="big">${esc(big)}</span><span class="why">${esc(why)}</span>`;
+function renderHero(report) {
+  const s = report.summary, c = report.campaign;
+  let headline = "", why = "";
+  if (!s.actions) { headline = "No actions yet."; why = "No actions have been created for this campaign."; }
+  else if (!s.chains_intact) { headline = "The ledger is inconsistent."; why = `${plural(s.broken_chains, "action")} with a history that is not a legal path through the state machine.`; }
+  else if (s.by_state.failed) { headline = `${plural(s.by_state.failed, "action")} failed.`; why = `Failed: ${report.nodes.filter((n) => n.state === "failed").map((n) => n.label).join(", ")}.`; }
+  else if (s.all_verified) { headline = `All ${s.actions} actions verified.`; why = `${s.transitions} fenced transitions. Each action's recorded history is an unbroken, legal path to its current state${s.recovered ? `; ${s.recovered} recovered after a crash without re-sending` : ""}${s.adapted ? `; ${s.adapted} verified after a proposed mapping` : ""}.`; }
+  else { headline = `${s.verified} of ${s.actions} actions verified.`; why = `${s.open} still in progress. This page updates as the ledger changes.`; }
+  document.title = `Proof · ${c.playbook || c.kind} · suture`;
+  $("kicker").textContent = `Proof · ${c.playbook || c.kind}`;
+  $("state").innerHTML = badge(c.state);
+  $("headline").textContent = headline;
+  $("why").textContent = why;
+  $("cid").textContent = `campaign ${c._id}`;
+
+  const elapsed = s.first_transition_at && s.last_transition_at ? ((new Date(s.last_transition_at) - new Date(s.first_transition_at)) / 1000).toFixed(1) + "s" : "0s";
+  const cells = [[s.actions, "Actions"], [s.verified, "Verified"]];
+  if (s.by_state.unknown) cells.push([s.by_state.unknown, "Unknown"]);
+  cells.push([s.by_state.failed || 0, "Failed"], [s.recovered, "Recovered"], [s.adapted || 0, "Adapted"], [elapsed, "Elapsed"]);
+  $("stats").innerHTML = cells.map(([n, label]) => `<div class="stat"><b>${esc(n)}</b><span class="label">${label}</span></div>`).join("");
 }
 
-function renderStats(report) {
-  const s = report.summary;
-  const span = s.first_transition_at && s.last_transition_at ? ((new Date(s.last_transition_at) - new Date(s.first_transition_at)) / 1000).toFixed(1) + "s" : "–";
-  const cells = [
-    [s.actions, "actions"], [s.verified, "verified", "s-verified"], [s.by_state.unknown || 0, "unknown", "s-unknown"],
-    [s.by_state.failed || 0, "failed", "s-failed"], [s.recovered, "recovered"], [s.adapted || 0, "adapted"], [s.transitions, "transitions"], [span, "elapsed"],
-  ];
-  $("stats").innerHTML = cells.map(([n, label, c]) => `<div class="stat"><b class="${c || ""}">${esc(n)}</b><span>${label}</span></div>`).join("");
-}
-
-function renderDag(report) {
+function dag(report) {
   const nodes = report.nodes;
-  if (!nodes.length) { $("dag").innerHTML = `<div class="empty">No actions yet.</div>`; return; }
-  const W = 196, H = 58, GX = 56, GY = 16, PAD = 12;
+  const W = 200, H = 64, GX = 56, GY = 16, PAD = 4;
   const columns = [];
   for (const n of nodes) (columns[n.layer] = columns[n.layer] || []).push(n);
   const tallest = Math.max(...columns.map((c) => (c ? c.length : 0)));
   const height = PAD * 2 + tallest * H + (tallest - 1) * GY;
   const width = PAD * 2 + columns.length * W + (columns.length - 1) * GX;
-  const pos = new Map();
+  const pos = new Map(), byId = new Map(nodes.map((n) => [n.id, n]));
   columns.forEach((col, x) => {
     const colHeight = col.length * H + (col.length - 1) * GY;
     col.forEach((n, y) => pos.set(n.id, { x: PAD + x * (W + GX), y: (height - colHeight) / 2 + y * (H + GY) }));
@@ -146,86 +206,96 @@ function renderDag(report) {
   const edges = report.edges.filter((e) => pos.has(e.from) && pos.has(e.to)).map((e) => {
     const a = pos.get(e.from), b = pos.get(e.to);
     const x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2, mid = (x1 + x2) / 2;
-    return `<path class="edge" d="M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2 - 6},${y2}" marker-end="url(#arrow)"/>`;
+    return `<path class="edge ${IN_FLIGHT.includes(byId.get(e.to).state) ? "current" : ""}" d="M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}"/>`;
   }).join("");
   const boxes = nodes.map((n) => {
-    const p = pos.get(n.id), color = COLORS[n.state] || COLORS.intended;
-    return `<g class="node" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})">
+    const p = pos.get(n.id);
+    return `<g class="node s-${cls(n.state)}" data-id="${esc(n.id)}" tabindex="0" role="link" transform="translate(${p.x},${p.y})">
       <title>${esc(n.label)} · ${esc(n.state)} · ${esc(n.id)}</title>
-      <rect width="${W}" height="${H}" rx="9" stroke="${color}"/>
-      <rect width="5" height="${H - 16}" x="0" y="8" rx="2.5" fill="${color}" stroke="none" style="fill:${color}"/>
-      <text class="t1" x="14" y="21">${esc(clip(n.label, 24))}</text>
-      <text class="t2 mono" x="14" y="36">${esc(clip(n.adapter, 16))} · …${esc(n.id.slice(-6))}</text>
-      <text class="t3" x="14" y="50" fill="${color}">${esc(n.state)}${n.recovered ? " · recovered" : ""}${n.adapted ? " · adapted" : ""}</text>
+      <rect class="card" x=".5" y=".5" width="${W - 1}" height="${H - 1}" rx="12"/>
+      <line class="edge-mark" x1="1" y1="13" x2="1" y2="${H - 13}"/>
+      <text class="t1" x="16" y="24">${esc(clip(n.label, 24))}</text>
+      <text class="t2" x="16" y="40">${esc(clip(n.adapter, 16))} · …${esc(n.id.slice(-6))}</text>
+      <text class="t3" x="16" y="55">${esc(n.state)}${n.recovered ? " · recovered" : ""}${n.adapted ? " · adapted" : ""}</text>
     </g>`;
   }).join("");
-  $("dag").innerHTML = `<svg style="max-width:${width}px" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dependency graph of actions">
-    <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3a4560"/></marker></defs>
-    ${edges}${boxes}</svg>`;
+  return `<svg style="max-width:${width}px" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dependency graph of actions">${edges}${boxes}</svg>`;
 }
 
-function renderCards(report) {
-  if (!report.nodes.length) { $("cards").innerHTML = ""; return; }
-  $("cards").innerHTML = report.nodes.map((n) => {
-    const rows = n.timeline.map((t) => `<tr>
-        <td class="ts mono">${esc(stamp(t.ts))}</td>
-        <td><span class="s-${COLORS[t.from] ? t.from : "intended"}">${esc(t.from)}</span> → <b class="s-${COLORS[t.to] ? t.to : "intended"}">${esc(t.to)}</b></td>
-        <td class="dt mono">${t.elapsed_ms === null || t.elapsed_ms === undefined ? "" : "+" + esc(t.elapsed_ms) + " ms"}</td>
-        <td class="reason">${esc(t.reason)}</td>
-      </tr>`).join("");
-    const attempts = n.attempts.length ? `<h3>Attempts</h3><table class="timeline">${n.attempts.map((a) => `<tr><td class="ts mono">${esc(stamp(a.ts))}</td><td class="mono">${esc(a.worker_id)}</td><td class="reason">${esc(a.outcome)}</td></tr>`).join("")}</table>` : "";
-    const problems = n.chain_problems.length ? `<h3>History check</h3><ul class="problems">${n.chain_problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
-    return `<div class="panel card" id="a-${esc(n.id)}">
-      <div class="head">
-        <span class="op">${esc(n.label)}</span><span class="adapter mono">${esc(n.adapter)}.${esc(n.operation)}</span>
-        ${badge(n.state)}
-        ${n.recovered ? `<span class="tag">recovered, no re-send</span>` : ""}
-        ${n.adapted ? `<span class="tag adapt">adapted, then re-verified</span>` : ""}
-        ${n.chain_problems.length ? `<span class="tag bad">history broken</span>` : ""}
-        <span class="aid mono">action_id ${esc(n.id)}</span>
+// The action's history as one vertical seam: where it started, then a stitch per transition.
+function thread(n) {
+  const steps = [{ to: n.timeline.length ? n.timeline[0].from : n.state, ts: n.created_at, reason: "planned" }, ...n.timeline];
+  const last = steps.length - 1;
+  return `<ol class="vthread">${steps.map((t, i) => {
+    const next = steps[i + 1];
+    const cut = next && recoveryReason(next.reason);   // the worker died here; the next step picked the same line back up
+    const current = i === last && IN_FLIGHT.includes(n.state);
+    const gap = t.elapsed_ms === null || t.elapsed_ms === undefined ? "" : ` · +${t.elapsed_ms} ms`;
+    return `<li class="vstep s-${cls(t.to)} ${cut ? "cut" : ""} ${current ? "current" : ""}"><span class="dot"></span>${cut ? `<i class="resume"></i>` : ""}
+      <div class="move">${t.from ? `${esc(t.from)} → ` : ""}<b>${esc(t.to)}</b></div>
+      ${t.reason ? `<div class="reason">${esc(t.reason)}</div>` : ""}
+      <div class="when mono">${esc(stamp(t.ts))}${esc(gap)}</div></li>`;
+  }).join("")}</ol>`;
+}
+
+function card(n) {
+  const attempts = n.attempts.length ? `<span class="label">Attempts</span><div class="rows">${n.attempts.map((a) => `<div><span class="when mono">${esc(stamp(a.ts))}</span><span class="mono">${esc(a.worker_id)}</span><span>${esc(a.outcome)}</span></div>`).join("")}</div>` : "";
+  const problems = n.chain_problems.length ? `<span class="label">History check</span><ul class="problems">${n.chain_problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
+  const receipt = hasKeys(n.verify_receipt)
+    ? `<pre class="mono">${pretty(n.verify_receipt)}</pre>`
+    : `<div class="note">${n.state === "verified" ? `Verified at ${esc(stamp(n.verified_at))}. The runner did not store what verify() observed.` : "Not verified yet."}</div>`;
+  return `<div class="panel card" id="a-${esc(n.id)}">
+    <div class="chead">
+      <span class="op">${esc(n.label)}</span><span class="adapter mono">${esc(n.adapter)}.${esc(n.operation)}</span>
+      ${badge(n.state, IN_FLIGHT.includes(n.state) ? "active" : "")}
+      ${n.recovered ? `<span class="tag recovered">recovered, no re-send</span>` : ""}
+      ${n.adapted ? `<span class="tag adapted">adapted, then re-verified</span>` : ""}
+      ${n.chain_problems.length ? `<span class="tag broken">history broken</span>` : ""}
+      <span class="aid mono">action_id ${esc(n.id)}</span>
+    </div>
+    <div class="cbody">
+      <div class="col">
+        <span class="label">State transitions</span>
+        ${thread(n)}
+        ${attempts}${problems}
       </div>
-      <div class="body">
-        <div class="col">
-          <h3>State transitions</h3>
-          ${rows ? `<table class="timeline"><colgroup><col class="c-ts"><col class="c-move"><col class="c-dt"><col></colgroup>${rows}</table>` : `<div class="none">Planned, not started.</div>`}
-          ${attempts}${problems}
-        </div>
-        <div class="col">
-          <h3>Verify receipt</h3>
-          ${hasKeys(n.verify_receipt) ? `<pre class="mono">${pretty(n.verify_receipt)}</pre>` : `<div class="none">${n.state === "verified" ? "Verified at " + esc(stamp(n.verified_at)) + ". The runner did not store what verify() observed." : "Not verified yet."}</div>`}
-          ${hasKeys(n.adaptation) ? `<h3>Adaptation proposed while unknown</h3><pre class="mono">${pretty(n.adaptation)}</pre>` : ""}
-          <h3>External reference</h3>
-          ${hasKeys(n.external_ref) ? `<pre class="mono">${pretty(n.external_ref)}</pre>` : `<div class="none">None recorded.</div>`}
-          ${hasKeys(n.params) ? `<h3>Parameters</h3><pre class="mono">${pretty(n.params)}</pre>` : ""}
-        </div>
+      <div class="col">
+        <span class="label">Verify receipt</span>
+        ${receipt}
+        ${hasKeys(n.adaptation) ? `<span class="label">Adaptation proposed while unknown</span><pre class="mono">${pretty(n.adaptation)}</pre>` : ""}
+        <span class="label">External reference</span>
+        ${hasKeys(n.external_ref) ? `<pre class="mono">${pretty(n.external_ref)}</pre>` : `<div class="note">None recorded.</div>`}
+        ${hasKeys(n.params) ? `<span class="label">Parameters</span><pre class="mono">${pretty(n.params)}</pre>` : ""}
       </div>
-    </div>`;
-  }).join("");
+    </div>
+  </div>`;
 }
 
 async function load() {
   const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/proof`);
   if (!res.ok) {
-    $("verdict").className = "verdict bad";
-    $("verdict").innerHTML = `<span class="big">Campaign not found</span><span class="why mono">${esc(campaignId)}</span>`;
-    $("dag").innerHTML = `<div class="empty">Nothing to show.</div>`;
+    $("headline").textContent = "Campaign not found.";
+    $("why").textContent = "No campaign has this id in the current database.";
+    $("cid").textContent = campaignId;
+    $("stats").innerHTML = ""; $("body").innerHTML = "";
     return;
   }
   const report = await res.json();
-  const c = report.campaign;
-  document.title = `Proof · ${c.playbook || c.kind} · suture`;
-  $("title").textContent = `Proof view · ${c.playbook || c.kind}`;
-  $("cid").textContent = `campaign ${c._id} · ${c.state}`;
-  renderVerdict(report); renderStats(report); renderDag(report); renderCards(report);
+  renderHero(report);
+  $("body").innerHTML = report.nodes.length
+    ? `<h2 class="section">Dependency graph</h2><div id="dag">${dag(report)}</div>
+       <h2 class="section">Action history and receipts</h2>${report.nodes.map(card).join("")}`
+    : "";
 }
 
-$("dag").addEventListener("click", (ev) => {
-  const node = ev.target.closest(".node");
-  if (!node) return;
+function openCard(node) {
   document.querySelectorAll(".card.focus").forEach((el) => el.classList.remove("focus"));
-  const card = $(`a-${node.dataset.id}`);
-  if (card) { card.classList.add("focus"); card.scrollIntoView({ behavior: "smooth", block: "start" }); }
-});
+  const el = $(`a-${node.dataset.id}`);
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (el) { el.classList.add("focus"); el.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" }); }
+}
+$("body").addEventListener("click", (ev) => { const node = ev.target.closest(".node"); if (node) openCard(node); });
+$("body").addEventListener("keydown", (ev) => { const node = ev.target.closest(".node"); if (node && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); openCard(node); } });
 
 // Stay current: reload when the change stream reports a write for this campaign.
 let pending = null;
