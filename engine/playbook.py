@@ -1,12 +1,5 @@
 """Playbook DAG loader + runner (PRD §1.5). TODO(slice A)."""
-from pathlib import Path
-
-import yaml
-
-
-def load_playbook(path: str | Path) -> dict:
-    with open(path) as f:
-        return yaml.safe_load(f)
+from engine.playbook_spec import load_playbook  # noqa: F401  (re-export)
 
 
 async def run_campaign(campaign_id: str) -> None:
