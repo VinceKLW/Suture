@@ -1,3 +1,68 @@
-# Owner: slice B. See PRD §1.5 for format.
+# Rotate a leaked AWS access key across every GitHub repo that consumes it.
+#
+# Campaign trigger: { source: ..., payload: { access_key_id: <leaked key id>, user: <IAM user> } }
+#
+# Conventions this file assumes from the playbook runner (slice A), shared with fix.yaml:
+#   - An input value "${ref}" is replaced with the value <ref> points at (lists, dicts,
+#     and strings all pass through unchanged). Any other input is a literal.
+#   - <ref> is `campaign.<path>` or `<step_id>.result.<path>`, where `result` is that
+#     step's action.external_ref.
+#   - `fan_out.from` is a bare <ref> to a list; `fan_out.as` names the param that
+#     receives each item. A fan_out over an empty list creates no actions and counts as done.
 name: rotate
-steps: []
+steps:
+  - id: discover_consumers
+    adapter: github_search
+    operation: find_secret_consumers
+    inputs:
+      pattern: AWS_ACCESS_KEY_ID
+      holding_value: "${campaign.trigger.payload.access_key_id}"
+
+  - id: create_new_key
+    adapter: aws_iam
+    operation: create_access_key
+    depends_on: [discover_consumers]
+    inputs:
+      user: "${campaign.trigger.payload.user}"
+
+  - id: update_secret
+    adapter: github_secrets
+    operation: update_secret
+    depends_on: [create_new_key]
+    fan_out:
+      from: discover_consumers.result.consumers
+      as: repo
+    inputs:
+      secret_name: AWS_ACCESS_KEY_ID
+      value: "${create_new_key.result.access_key_id}"
+
+  # Search again right before revoking: any repo that *still* holds the old key
+  # (e.g. one that appeared mid-run) is a consumer we missed. Repos updated
+  # above no longer match, so this only returns the stragglers.
+  - id: rediscover_consumers
+    adapter: github_search
+    operation: find_secret_consumers
+    depends_on: [update_secret]
+    inputs:
+      pattern: AWS_ACCESS_KEY_ID
+      holding_value: "${campaign.trigger.payload.access_key_id}"
+
+  - id: update_late_consumers
+    adapter: github_secrets
+    operation: update_secret
+    depends_on: [rediscover_consumers]
+    fan_out:
+      from: rediscover_consumers.result.consumers
+      as: repo
+    inputs:
+      secret_name: AWS_ACCESS_KEY_ID
+      value: "${create_new_key.result.access_key_id}"
+
+  # Revoke only after every consumer is verified on the new key. The verify()
+  # on this action is the "old key is dead" check: the key isn't listed and STS rejects it.
+  - id: revoke_old
+    adapter: aws_iam
+    operation: delete_access_key
+    depends_on: [update_late_consumers]
+    inputs:
+      access_key_id: "${campaign.trigger.payload.access_key_id}"
