@@ -23,11 +23,13 @@ import anthropic
 
 from model.client import get_client
 
-RETRO_MODEL = os.environ.get("RETRO_MODEL", "claude-opus-5-5")
+RETRO_MODEL = os.environ.get("RETRO_MODEL", "claude-haiku-5-5")
 PROMPT_VERSION = "retro-v1"
 # Server-side refusal fallback: if the model declines, the API re-runs the same
-# request on a fallback model inside the same call. RETRO_FALLBACKS=off disables it.
+# request on a fallback model inside the same call. Only some models accept the
+# parameter (Haiku 5.5 does not), so it is sent only for those. RETRO_FALLBACKS=off disables it.
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+FALLBACK_MODELS = frozenset({"claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5", "claude-fable-5-2", "claude-fable-5-1"})
 RETRO_MAX_TOKENS = 16000
 CHAT_MAX_TOKENS = 8000
 
@@ -194,7 +196,7 @@ RETRO_SCHEMA: dict[str, Any] = {
 
 
 def _fallback_kwargs() -> dict:
-    if os.environ.get("RETRO_FALLBACKS", "default").lower() in ("off", "0", "false", "no"):
+    if RETRO_MODEL not in FALLBACK_MODELS or os.environ.get("RETRO_FALLBACKS", "default").lower() in ("off", "0", "false", "no"):
         return {}
     return {"betas": [FALLBACK_BETA], "fallbacks": "default"}
 
