@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
     await dashboard.broadcaster.stop()
 
 
-app = FastAPI(title="Incident Recovery Agent", lifespan=lifespan)
+app = FastAPI(title="suture", lifespan=lifespan)
 app.include_router(dashboard.router)
 app.include_router(proof.router)
 

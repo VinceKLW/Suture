@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Proof view</title>
+<title>Proof view · suture</title>
 <!-- Owner: slice D. Vanilla HTML + fetch + inline SVG, no build step. Served at /proof/<campaign_id>. -->
 <style>
   :root {
@@ -213,7 +213,7 @@ async function load() {
   }
   const report = await res.json();
   const c = report.campaign;
-  document.title = `Proof · ${c.playbook || c.kind}`;
+  document.title = `Proof · ${c.playbook || c.kind} · suture`;
   $("title").textContent = `Proof view · ${c.playbook || c.kind}`;
   $("cid").textContent = `campaign ${c._id} · ${c.state}`;
   renderVerdict(report); renderStats(report); renderDag(report); renderCards(report);
