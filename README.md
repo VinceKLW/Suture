@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./docs/images/header.webp" alt="Incident Recovery Agent" width="100%"/>
+  <img src="./docs/images/header.webp" alt="Incident Recovery Agent: finishes the job, even after a crash" width="100%"/>
 
   [![Python](https://img.shields.io/badge/Python-3.13-3776AB)](https://www.python.org/)
   [![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-47A248)](https://www.mongodb.com/atlas)
@@ -39,8 +39,7 @@ state machine, and a step only counts once an independent check says the effect 
   action id and receipt.
 
 <div align="center">
-  <img src="./docs/images/crash.webp" alt="Survives a crash, never acts twice" width="800"/>
-  <p><em>One crash, one ripple: the ledger makes every external effect happen exactly once</em></p>
+  <img src="./docs/images/crash.webp" alt="Crash it. It finishes. Kill the worker mid-rotation; on restart it asks whether its last write landed and never sends it twice." width="800"/>
 </div>
 
 ---
@@ -89,8 +88,7 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Dead-key check** | Revoke is only verified once the key is gone from the list *and* STS rejects it |
 
 <div align="center">
-  <img src="./docs/images/rotate.webp" alt="Rotate a leaked key" width="800"/>
-  <p><em>The old key turns to dust only after every consumer is verified on the new one</em></p>
+  <img src="./docs/images/rotate.webp" alt="Rotate a leaked key. Finds every repo holding the key, swaps in a new one, and revokes the old key only after each repo is verified." width="800"/>
 </div>
 
 ### 🧠 Fix a broken build
@@ -103,8 +101,7 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Atomic promotion** | `actions.state = verified` and the new `experiences` row commit together, or not at all |
 
 <div align="center">
-  <img src="./docs/images/recall.webp" alt="Remembers what worked" width="800"/>
-  <p><em>Only fixes that were proven to work are ever remembered</em></p>
+  <img src="./docs/images/recall.webp" alt="Remember what worked. Verified fixes are embedded with Voyage and recalled with Atlas Vector Search." width="800"/>
 </div>
 
 ### 📬 Notify and prove
@@ -229,8 +226,8 @@ demo/          scenario driver and the naive baseline
 tests/         state, executor, playbook, reconciler, worker, rotate, fix, notify, API, proof
 ```
 
-Design notes: [PRD.md](PRD.md) (the contract and the 60-second demo) and [CLAUDE.md](CLAUDE.md) (engine API,
-adapter contract, gotchas).
+Design notes: [PRD.md](PRD.md) (the contract and the 60-second demo), [CLAUDE.md](CLAUDE.md) (engine API,
+adapter contract, gotchas) and [DESIGN.md](DESIGN.md) (the design language: colours, type, components, imagery).
 
 ---
 
@@ -239,7 +236,8 @@ adapter contract, gotchas).
 - **Building it:** we used Claude and Codex to help write the code.
 - **Inside the agent:** Claude proposes a field mapping when an API response changes shape. It never decides
   whether a step worked; `verify()` does. Voyage embeds past fixes for recall.
-- **Images:** generated with ChatGPT image generation.
+- **Images:** photos generated with ChatGPT image generation (through Codex); captions, logo and banner type set by
+  hand. The logo is a vector redraw of a generated concept.
 
 ## ⚠️ Status
 
@@ -249,4 +247,10 @@ survives a worker crash; email runs against MailHog. The fix playbook is not yet
 ## 👥 Team
 
 Built at MongoDB Agents in Context (Toronto, 2026-11-14) by [Vincent Wong](https://github.com/VinceKLW),
-[Julian Cruzet](https://github.com/JulianCruzet), [Ali Shamsi](https://github.com/shambo2) and Ahmed Elshikh.
+[Julian Cruzet](https://github.com/JulianCruzet), [Ali Shamsi](https://github.com/shambo2) and
+[Ahmed Elshikh](https://github.com/ahelshikh).
+
+<div align="center">
+  <br/>
+  <img src="./docs/images/logo.png" alt="Incident Recovery Agent logo" width="72"/>
+</div>
