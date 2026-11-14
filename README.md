@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./docs/images/header.webp" alt="Incident Recovery Agent: finishes the job, even after a crash" width="100%"/>
+  <img src="./docs/images/header.webp" alt="suture: finishes the job, even after a crash" width="100%"/>
 
   [![Python](https://img.shields.io/badge/Python-3.13-3776AB)](https://www.python.org/)
   [![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-47A248)](https://www.mongodb.com/atlas)
@@ -14,20 +14,20 @@
 
 ## 🧭 Overview
 
-**Incident Recovery Agent** cleans up after a security incident and actually finishes the job, even when its own
-worker dies halfway through.
+**suture** cleans up after a security incident and actually finishes the job, even when its own worker dies
+halfway through. It closes the wound: every loose thread gets tied off, exactly once.
 
-> *An AWS access key leaks in a public commit. The agent finds every repo that uses it, creates a new key, swaps the
+> *An AWS access key leaks in a public commit. suture finds every repo that uses it, creates a new key, swaps the
 > secret in each repo, revokes the old key and emails the owner. We kill the worker mid-rotation. It comes back,
 > asks GitHub whether its last write already landed, sees that it did, and carries on. Nothing happens twice.*
 
 Most agents are good at starting. Recovery work has to be **finished**: half-rotated keys and half-applied fixes
-are worse than none. So every step the agent takes is a document in a MongoDB ledger that moves through a fenced
+are worse than none. So every step suture takes is a document in a MongoDB ledger that moves through a fenced
 state machine, and a step only counts once an independent check says the effect is real.
 
 ### Why it's different
 
-- **Crash-proof by construction.** Every external call is stamped with its action id. After a crash, the agent asks
+- **Crash-proof by construction.** Every external call is stamped with its action id. After a crash, suture asks
   the outside world *"did this already happen?"* before it ever retries, so a restart never duplicates a write.
 - **Verified, not assumed.** A 200 from an API is a `receipt`, not a result. Each step is re-checked
   independently (the old key really fails, the email really arrived) before it becomes `verified`.
@@ -39,7 +39,7 @@ state machine, and a step only counts once an independent check says the effect 
   action id and receipt.
 
 <div align="center">
-  <img src="./docs/images/crash.webp" alt="Crash it. It finishes. Kill the worker mid-rotation; on restart it asks whether its last write landed and never sends it twice." width="800"/>
+  <img src="./docs/images/crash.webp" alt="Crash it. It finishes." width="800"/>
 </div>
 
 ---
@@ -88,7 +88,7 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Dead-key check** | Revoke is only verified once the key is gone from the list *and* STS rejects it |
 
 <div align="center">
-  <img src="./docs/images/rotate.webp" alt="Rotate a leaked key. Finds every repo holding the key, swaps in a new one, and revokes the old key only after each repo is verified." width="800"/>
+  <img src="./docs/images/rotate.webp" alt="Rotates a leaked key." width="800"/>
 </div>
 
 ### 🧠 Fix a broken build
@@ -101,7 +101,7 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Atomic promotion** | `actions.state = verified` and the new `experiences` row commit together, or not at all |
 
 <div align="center">
-  <img src="./docs/images/recall.webp" alt="Remember what worked. Verified fixes are embedded with Voyage and recalled with Atlas Vector Search." width="800"/>
+  <img src="./docs/images/recall.webp" alt="Remembers what worked." width="800"/>
 </div>
 
 ### 📬 Notify and prove
@@ -111,6 +111,10 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Read-back delivery** | Email goes out over SMTP with an `X-Recovery-Action-Id` header and is confirmed by fetching it back (MailHog) |
 | **Live dashboard** | One Change Stream on `campaigns` and `actions`, pushed to the browser over SSE. No polling. |
 | **Proof view** | `/proof/<campaign_id>`: the DAG with each node's state, every transition timestamp and every receipt |
+
+<div align="center">
+  <img src="./docs/images/proof.webp" alt="Proof for every step." width="800"/>
+</div>
 
 ---
 
@@ -236,8 +240,8 @@ adapter contract, gotchas) and [DESIGN.md](DESIGN.md) (the design language: colo
 - **Building it:** we used Claude and Codex to help write the code.
 - **Inside the agent:** Claude proposes a field mapping when an API response changes shape. It never decides
   whether a step worked; `verify()` does. Voyage embeds past fixes for recall.
-- **Images:** photos generated with ChatGPT image generation (through Codex); captions, logo and banner type set by
-  hand. The logo is a vector redraw of a generated concept.
+- **Images:** photos generated with ChatGPT image generation (through Codex); titles and the logo set by hand in
+  Geist.
 
 ## ⚠️ Status
 
@@ -252,5 +256,5 @@ Built at MongoDB Agents in Context (Toronto, 2026-11-14) by [Vincent Wong](https
 
 <div align="center">
   <br/>
-  <img src="./docs/images/logo.png" alt="Incident Recovery Agent logo" width="72"/>
+  <img src="./docs/images/logo.png" alt="suture logo" width="72"/>
 </div>
