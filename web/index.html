@@ -73,6 +73,7 @@
   .trail .step.now { opacity: 1; font-weight: 700; background: rgba(255,255,255,.05); }
   .trail .arrow { color: var(--muted); font-size: 11px; }
   .tag { font-size: 10.5px; padding: 1px 7px; border-radius: 5px; background: rgba(192,132,252,.15); color: var(--unknown); border: 1px solid rgba(192,132,252,.4); }
+  .tag.adapt { background: rgba(90,162,255,.13); color: var(--sent); border-color: rgba(90,162,255,.45); }
 
   a.link { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
   a.link:hover { text-decoration: underline; }
@@ -175,8 +176,11 @@ function countsOf(campaignId) {
   else Object.assign(counts, (campaigns.get(campaignId) || {}).counts || {});
   return counts;
 }
-function wasRecovered(a) {
-  return (a.transitions || []).some((t) => t.to === "unknown" || /reconcil|lookup|recover/i.test(t.reason || ""));
+function wasRecovered(a) {   // resolved after a crash: the engine asked lookup() instead of re-sending
+  return (a.transitions || []).some((t) => /reconcil|lookup|recover/i.test(t.reason || ""));
+}
+function wasAdapted(a) {     // verify() could not tell; a proposed mapping was applied and verify() re-run
+  return Boolean(a.adaptation) || (a.transitions || []).some((t) => /adaptation/i.test(t.reason || ""));
 }
 
 function renderCampaigns() {
@@ -216,7 +220,7 @@ function renderDetail() {
       <div><span class="op">${esc(stepLabel(a))}</span><span class="adapter mono">${esc(a.adapter)}.${esc(a.operation)}</span>
         <div class="target">${esc(targetLabel(a))}</div></div>
       <div>${badge(a.state)}</div>
-      <div class="trail">${trail.join("")}${wasRecovered(a) ? ` <span class="tag">recovered, no re-send</span>` : ""}</div>
+      <div class="trail">${trail.join("")}${wasRecovered(a) ? ` <span class="tag">recovered, no re-send</span>` : ""}${wasAdapted(a) ? ` <span class="tag adapt">adapted, then re-verified</span>` : ""}</div>
       <div class="ids mono"><span>action ${esc(a._id)}</span><span>${(a.attempts || []).length} attempt${(a.attempts || []).length === 1 ? "" : "s"}</span>${last ? `<span>last ${esc(clock(last.ts))}${last.reason ? " · " + esc(last.reason) : ""}</span>` : ""}</div>
     </div>`;
   }).join("");
