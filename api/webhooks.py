@@ -95,7 +95,24 @@ async def _failure_text(repo: str, sha: str, fallback: str) -> str:
         return fallback
 
 
+FIX_DELAY_S = float(os.environ.get("FIX_DELAY_S", "20"))  # let the red CI sit on screen before the fix starts
+
+
 def _run_in_process(campaign_id) -> None:
+    """Start the fix after FIX_DELAY_S. The campaign is already on the dashboard; the pause
+    keeps the broken state visible for a beat instead of fixing it the instant CI goes red."""
+    async def later():
+        if FIX_DELAY_S > 0:
+            log.info("webhook: campaign %s opened; starting the fix in %.0fs", campaign_id, FIX_DELAY_S)
+            await asyncio.sleep(FIX_DELAY_S)
+        _start_now(campaign_id)
+
+    task = asyncio.create_task(later(), name=f"fix-delay-{campaign_id}")
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
+def _start_now(campaign_id) -> None:
     global _runs
     from api import chaos
     if chaos.adopt(campaign_id):  # under the chaos panel, so its Kill / Rename buttons work on this incident
