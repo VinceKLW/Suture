@@ -161,19 +161,30 @@ def fake_client(message, chunks=()):
 
 def message(text, stop="end_turn"):
     return SimpleNamespace(content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=text)],
-                           stop_reason=stop, model="claude-opus-5-5", usage=SimpleNamespace(model_dump=lambda: {"output_tokens": 9}))
+                           stop_reason=stop, model="claude-haiku-5-5", usage=SimpleNamespace(model_dump=lambda: {"output_tokens": 9}))
 
 
 async def test_write_retro_parses_structured_output(monkeypatch):
     client, calls = fake_client(message(json.dumps({"title": "T", "summary": "S"})))
     monkeypatch.setattr(model_retro, "get_client", lambda: client)
     out = await model_retro.write_retro({"steps": []})
-    assert out["title"] == "T" and out["_meta"]["model"] == "claude-opus-5-5"
+    assert out["title"] == "T" and out["_meta"]["model"] == "claude-haiku-5-5"
     kw = calls[0]
     assert kw["model"] == model_retro.RETRO_MODEL and kw["output_config"]["format"]["type"] == "json_schema"
-    assert "thinking" not in kw and "tool_choice" not in kw  # Opus 5.5: adaptive thinking, no forced tools
-    assert kw["fallbacks"] == "default" and kw["betas"] == [model_retro.FALLBACK_BETA]
+    assert "thinking" not in kw and "tool_choice" not in kw  # adaptive thinking (the default), no forced tool use
+    assert "fallbacks" not in kw and "betas" not in kw  # Haiku 5.5 has no server-side fallback
     assert "<incident_facts>" in kw["messages"][0]["content"]
+
+
+async def test_fallback_only_for_models_that_support_it(monkeypatch):
+    client, calls = fake_client(message(json.dumps({"title": "T"})))
+    monkeypatch.setattr(model_retro, "get_client", lambda: client)
+    monkeypatch.setattr(model_retro, "RETRO_MODEL", "claude-opus-5-5")
+    await model_retro.write_retro({})
+    assert calls[0]["fallbacks"] == "default" and calls[0]["betas"] == [model_retro.FALLBACK_BETA]
+    monkeypatch.setenv("RETRO_FALLBACKS", "off")
+    await model_retro.write_retro({})
+    assert "fallbacks" not in calls[1]
 
 
 async def test_write_retro_errors(monkeypatch):
