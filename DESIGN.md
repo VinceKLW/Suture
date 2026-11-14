@@ -7,7 +7,7 @@ This is a guide, not code. Nothing in `web/` has been changed to match it yet; t
 [mapping table](#from-todays-dashboard) shows where today's tokens would go.
 
 <div align="center">
-  <img src="./docs/images/header.webp" alt="suture" width="100%"/>
+  <img src="./docs/images/header-v3.webp" alt="suture" width="100%"/>
 </div>
 
 ---
@@ -217,8 +217,8 @@ images with ChatGPT image generation):
 
 **Image + title.** Section images are 3:1 like the header (never square) with one short title set on the photo in Geist
 Regular, `--ink`, in the image's darkest empty area: nothing else. No subtitles, no labels, no stats, no captions
-under the image. Title size is about 3.4% of the image width. No people in the scenes. See `docs/images/crash.webp`, `rotate.webp`,
-`recall.webp`, `proof.webp`.
+under the image. Title size is about 3.4% of the image width. No people in the scenes. See `docs/images/crash-v3.webp`, `rotate-v3.webp`,
+`recall-v3.webp`, `proof-v3.webp`.
 
 **Header** is 3:1: the glass sphere holding the logo mark, "suture" in Geist Regular beside it with one short line
 in `--sage` under it.
