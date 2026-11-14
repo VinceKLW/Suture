@@ -1,3 +1,58 @@
-# Owner: slice C. See PRD §1.5 for format.
+# Fix playbook (slice C). See PRD §1.5 for format and §5 for semantics.
+# The DAG is executed by engine/playbook.py (slice A). Until that runner lands,
+# tests/test_fix.py exercises these steps directly against the adapters.
 name: fix
-steps: []
+steps:
+  - id: recall_experience
+    adapter: experiences         # pseudo-adapter: handled by the runner before
+    operation: recall            # dispatching to any real adapter
+    inputs:
+      problem_text: "${campaign.trigger.failure_text}"
+      k: 1
+
+  - id: draft_pr
+    adapter: experiences
+    operation: draft_from_recall
+    depends_on: [recall_experience]
+    inputs:
+      recalled: "${recall_experience.result.top}"
+
+  - id: open_pr
+    adapter: github_pr
+    operation: open_pr
+    depends_on: [draft_pr]
+    inputs:
+      repo: "${campaign.trigger.repo}"
+      title: "${draft_pr.result.title}"
+      body: "${draft_pr.result.body}"
+      head_sha: "${campaign.trigger.head_sha}"
+      ci_result: "${campaign.trigger.ci_result}"   # demo-only preseed
+
+  - id: wait_ci
+    adapter: github_pr
+    operation: wait_ci
+    depends_on: [open_pr]
+    inputs:
+      repo: "${campaign.trigger.repo}"
+      head_sha: "${open_pr.result.head_sha}"
+      timeout_s: 5
+
+  - id: verify_pr
+    adapter: github_pr
+    operation: verify              # calls adapter.verify(); on unknown the runner
+    depends_on: [wait_ci]           # invokes model/mapping.propose_mapping and
+    inputs:                         # re-runs verify with expected_field set
+      repo: "${campaign.trigger.repo}"
+    on_unknown:
+      strategy: model_mapping
+      canonical_success: success
+
+  - id: promote
+    adapter: experiences            # pseudo-adapter: triggers promote() in the runner
+    operation: promote_atomic
+    depends_on: [verify_pr]
+    inputs:
+      problem_text: "${campaign.trigger.failure_text}"
+      solution_text: "${recall_experience.result.top.solution_text}"
+      metadata:
+        repo: "${campaign.trigger.repo}"
