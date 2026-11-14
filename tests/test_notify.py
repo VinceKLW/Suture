@@ -147,10 +147,14 @@ def test_engine_worker_setup_hook_registers_the_adapter():
     from adapters.notify import adapter, register_notify_adapters
     from engine.worker import DEFAULT_SETUP, run_setup
 
+    # The worker may list either form: the bare module (registers at import) or
+    # the explicit function. Both must leave notify_email registered.
+    listed = [spec for spec in DEFAULT_SETUP if spec.split(":")[0] == "adapters.notify"]
+    assert listed, "the worker's DEFAULT_SETUP no longer loads the notify adapter"
+    for spec in {*listed, "adapters.notify", "adapters.notify:register_notify_adapters"}:
+        assert run_setup([spec]) == [spec]
+        assert get_adapter("notify_email") is adapter
     assert register_notify_adapters() == {"notify_email": adapter}
-    hook = "adapters.notify:register_notify_adapters"
-    assert hook in DEFAULT_SETUP and run_setup([hook]) == [hook]
-    assert get_adapter("notify_email") is adapter
 
 
 @requires_mongo
