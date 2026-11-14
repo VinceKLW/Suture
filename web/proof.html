@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proof view</title>
+<!-- Owner: slice D. Vanilla HTML + fetch + inline SVG, no build step. Served at /proof/<campaign_id>. -->
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #131824; --panel-2: #1a2030; --line: #252d40;
+    --text: #e6e9f0; --muted: #8b93a7; --accent: #6ea8fe;
+    --intended: #7c869c; --sent: #5aa2ff; --receipt: #f2b84b;
+    --verified: #3ecf8e; --unknown: #c084fc; --failed: #f26d6d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header a { color: var(--accent); text-decoration: none; font-size: 13px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header .id { color: var(--muted); font-size: 12px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 22px 40px; }
+  @media (max-width: 760px) { .wrap { padding: 14px 16px 32px; } }
+
+  .verdict { border-radius: 12px; padding: 14px 18px; border: 1px solid var(--line); background: var(--panel); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+  .verdict .big { font-size: 17px; font-weight: 650; }
+  .verdict.ok { border-color: rgba(62,207,142,.5); background: rgba(62,207,142,.08); }
+  .verdict.ok .big { color: var(--verified); }
+  .verdict.bad { border-color: rgba(242,109,109,.5); background: rgba(242,109,109,.08); }
+  .verdict.bad .big { color: var(--failed); }
+  .verdict .why { color: var(--muted); font-size: 13px; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; min-width: 104px; }
+  .stat b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+
+  h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); margin: 22px 0 8px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  #dag { overflow-x: auto; padding: 10px; }
+  #dag svg { display: block; width: 100%; height: auto; min-width: 860px; }
+  #dag .node { cursor: pointer; }
+  #dag .node rect { fill: var(--panel-2); stroke-width: 1.5; }
+  #dag .node:hover rect { fill: #222a3d; }
+  #dag .node .t1 { fill: var(--text); font-size: 12.5px; font-weight: 600; }
+  #dag .node .t2 { fill: var(--muted); font-size: 10.5px; }
+  #dag .node .t3 { font-size: 10.5px; font-weight: 700; }
+  #dag .edge { fill: none; stroke: #3a4560; stroke-width: 1.5; }
+
+  .s-intended { color: var(--intended); } .s-sent { color: var(--sent); } .s-receipt { color: var(--receipt); }
+  .s-verified { color: var(--verified); } .s-unknown { color: var(--unknown); } .s-failed { color: var(--failed); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
+  .tag { font-size: 10.5px; padding: 1px 7px; border-radius: 5px; background: rgba(192,132,252,.15); color: var(--unknown); border: 1px solid rgba(192,132,252,.4); }
+  .tag.bad { background: rgba(242,109,109,.12); color: var(--failed); border-color: rgba(242,109,109,.4); }
+
+  .card { margin-bottom: 12px; scroll-margin-top: 12px; }
+  .card.focus { border-color: var(--accent); }
+  .card .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .card .head .op { font-weight: 650; font-size: 15px; }
+  .card .head .adapter { color: var(--muted); font-size: 12px; }
+  .card .head .aid { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .card .body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0; }
+  @media (max-width: 860px) { .card .body { grid-template-columns: minmax(0, 1fr); } }
+  .card .col { padding: 12px 16px; min-width: 0; }
+  .card .col + .col { border-left: 1px solid var(--line); }
+  @media (max-width: 860px) { .card .col + .col { border-left: 0; border-top: 1px solid var(--line); } }
+  .card h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .card h3:not(:first-child) { margin-top: 14px; }
+
+  table.timeline { border-collapse: collapse; width: 100%; font-size: 12.5px; table-layout: fixed; }
+  table.timeline col.c-ts { width: 104px; } table.timeline col.c-move { width: 150px; } table.timeline col.c-dt { width: 78px; }
+  table.timeline td { padding: 4px 8px 4px 0; vertical-align: top; }
+  table.timeline td.ts { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.timeline td.dt { color: var(--muted); white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  table.timeline td.reason { color: var(--muted); overflow-wrap: anywhere; }
+  pre { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  .none { color: var(--muted); font-size: 12.5px; }
+  .problems { margin: 0; padding-left: 18px; color: var(--failed); font-size: 12.5px; }
+  .empty { padding: 26px 16px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">← Dashboard</a>
+  <h1 id="title">Proof view</h1>
+  <span class="id mono" id="cid"></span>
+</header>
+<div class="wrap">
+  <div id="verdict" class="verdict"><span class="big">Loading…</span></div>
+  <div class="stats" id="stats"></div>
+  <h2>Dependency graph</h2>
+  <div class="panel" id="dag"><div class="empty">Loading…</div></div>
+  <h2>Every action, every transition, every receipt</h2>
+  <div id="cards"></div>
+</div>
+
+<script>
+const campaignId = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
+const COLORS = { intended: "#7c869c", sent: "#5aa2ff", receipt: "#f2b84b", verified: "#3ecf8e", unknown: "#c084fc", failed: "#f26d6d" };
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const stamp = (iso) => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0"); };
+const badge = (s) => `<span class="badge s-${COLORS[s] ? s : "intended"}">${esc(s)}</span>`;
+const pretty = (v) => esc(JSON.stringify(v, null, 2));
+const hasKeys = (v) => v && typeof v === "object" && Object.keys(v).length > 0;
+const clip = (text, n) => (String(text).length > n ? String(text).slice(0, n - 1) + "…" : String(text));
+
+function renderVerdict(report) {
+  const s = report.summary;
+  const el = $("verdict");
+  let klass = "", big = "", why = "";
+  if (!s.actions) { big = "No actions recorded yet"; why = "This campaign has not planned any work."; }
+  else if (!s.chains_intact) { klass = "bad"; big = "Ledger inconsistency found"; why = `${s.broken_chains} action(s) have a history that is not a legal path through the state machine.`; }
+  else if (s.by_state.failed) { klass = "bad"; big = `${s.by_state.failed} action(s) failed`; why = "Failed actions are listed below with what was observed."; }
+  else if (s.all_verified) { klass = "ok"; big = `All ${s.actions} actions independently verified`; why = `${s.transitions} fenced transitions, every history intact${s.recovered ? `, ${s.recovered} recovered after a crash without re-sending` : ""}.`; }
+  else { big = `${s.verified} of ${s.actions} actions verified`; why = `${s.open} still in progress. This page updates as the ledger changes.`; }
+  el.className = `verdict ${klass}`;
+  el.innerHTML = `<span class="big">${esc(big)}</span><span class="why">${esc(why)}</span>`;
+}
+
+function renderStats(report) {
+  const s = report.summary;
+  const span = s.first_transition_at && s.last_transition_at ? ((new Date(s.last_transition_at) - new Date(s.first_transition_at)) / 1000).toFixed(1) + "s" : "–";
+  const cells = [
+    [s.actions, "actions"], [s.verified, "verified", "s-verified"], [s.by_state.unknown || 0, "unknown", "s-unknown"],
+    [s.by_state.failed || 0, "failed", "s-failed"], [s.recovered, "recovered"], [s.transitions, "transitions"], [span, "elapsed"],
+  ];
+  $("stats").innerHTML = cells.map(([n, label, c]) => `<div class="stat"><b class="${c || ""}">${esc(n)}</b><span>${label}</span></div>`).join("");
+}
+
+function renderDag(report) {
+  const nodes = report.nodes;
+  if (!nodes.length) { $("dag").innerHTML = `<div class="empty">No actions yet.</div>`; return; }
+  const W = 196, H = 58, GX = 56, GY = 16, PAD = 12;
+  const columns = [];
+  for (const n of nodes) (columns[n.layer] = columns[n.layer] || []).push(n);
+  const tallest = Math.max(...columns.map((c) => (c ? c.length : 0)));
+  const height = PAD * 2 + tallest * H + (tallest - 1) * GY;
+  const width = PAD * 2 + columns.length * W + (columns.length - 1) * GX;
+  const pos = new Map();
+  columns.forEach((col, x) => {
+    const colHeight = col.length * H + (col.length - 1) * GY;
+    col.forEach((n, y) => pos.set(n.id, { x: PAD + x * (W + GX), y: (height - colHeight) / 2 + y * (H + GY) }));
+  });
+  const edges = report.edges.filter((e) => pos.has(e.from) && pos.has(e.to)).map((e) => {
+    const a = pos.get(e.from), b = pos.get(e.to);
+    const x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2, mid = (x1 + x2) / 2;
+    return `<path class="edge" d="M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2 - 6},${y2}" marker-end="url(#arrow)"/>`;
+  }).join("");
+  const boxes = nodes.map((n) => {
+    const p = pos.get(n.id), color = COLORS[n.state] || COLORS.intended;
+    return `<g class="node" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})">
+      <title>${esc(n.label)} · ${esc(n.state)} · ${esc(n.id)}</title>
+      <rect width="${W}" height="${H}" rx="9" stroke="${color}"/>
+      <rect width="5" height="${H - 16}" x="0" y="8" rx="2.5" fill="${color}" stroke="none" style="fill:${color}"/>
+      <text class="t1" x="14" y="21">${esc(clip(n.label, 24))}</text>
+      <text class="t2 mono" x="14" y="36">${esc(clip(n.adapter, 16))} · …${esc(n.id.slice(-6))}</text>
+      <text class="t3" x="14" y="50" fill="${color}">${esc(n.state)}${n.recovered ? " · recovered" : ""}</text>
+    </g>`;
+  }).join("");
+  $("dag").innerHTML = `<svg style="max-width:${width}px" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dependency graph of actions">
+    <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3a4560"/></marker></defs>
+    ${edges}${boxes}</svg>`;
+}
+
+function renderCards(report) {
+  if (!report.nodes.length) { $("cards").innerHTML = ""; return; }
+  $("cards").innerHTML = report.nodes.map((n) => {
+    const rows = n.timeline.map((t) => `<tr>
+        <td class="ts mono">${esc(stamp(t.ts))}</td>
+        <td><span class="s-${COLORS[t.from] ? t.from : "intended"}">${esc(t.from)}</span> → <b class="s-${COLORS[t.to] ? t.to : "intended"}">${esc(t.to)}</b></td>
+        <td class="dt mono">${t.elapsed_ms === null || t.elapsed_ms === undefined ? "" : "+" + esc(t.elapsed_ms) + " ms"}</td>
+        <td class="reason">${esc(t.reason)}</td>
+      </tr>`).join("");
+    const attempts = n.attempts.length ? `<h3>Attempts</h3><table class="timeline">${n.attempts.map((a) => `<tr><td class="ts mono">${esc(stamp(a.ts))}</td><td class="mono">${esc(a.worker_id)}</td><td class="reason">${esc(a.outcome)}</td></tr>`).join("")}</table>` : "";
+    const problems = n.chain_problems.length ? `<h3>History check</h3><ul class="problems">${n.chain_problems.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
+    return `<div class="panel card" id="a-${esc(n.id)}">
+      <div class="head">
+        <span class="op">${esc(n.label)}</span><span class="adapter mono">${esc(n.adapter)}.${esc(n.operation)}</span>
+        ${badge(n.state)}
+        ${n.recovered ? `<span class="tag">recovered, no re-send</span>` : ""}
+        ${n.chain_problems.length ? `<span class="tag bad">history broken</span>` : ""}
+        <span class="aid mono">action_id ${esc(n.id)}</span>
+      </div>
+      <div class="body">
+        <div class="col">
+          <h3>State transitions</h3>
+          ${rows ? `<table class="timeline"><colgroup><col class="c-ts"><col class="c-move"><col class="c-dt"><col></colgroup>${rows}</table>` : `<div class="none">Planned, not started.</div>`}
+          ${attempts}${problems}
+        </div>
+        <div class="col">
+          <h3>Verify receipt</h3>
+          ${hasKeys(n.verify_receipt) ? `<pre class="mono">${pretty(n.verify_receipt)}</pre>` : `<div class="none">${n.state === "verified" ? "Verified at " + esc(stamp(n.verified_at)) + ". The runner did not store what verify() observed." : "Not verified yet."}</div>`}
+          <h3>External reference</h3>
+          ${hasKeys(n.external_ref) ? `<pre class="mono">${pretty(n.external_ref)}</pre>` : `<div class="none">None recorded.</div>`}
+          ${hasKeys(n.params) ? `<h3>Parameters</h3><pre class="mono">${pretty(n.params)}</pre>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function load() {
+  const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/proof`);
+  if (!res.ok) {
+    $("verdict").className = "verdict bad";
+    $("verdict").innerHTML = `<span class="big">Campaign not found</span><span class="why mono">${esc(campaignId)}</span>`;
+    $("dag").innerHTML = `<div class="empty">Nothing to show.</div>`;
+    return;
+  }
+  const report = await res.json();
+  const c = report.campaign;
+  document.title = `Proof · ${c.playbook || c.kind}`;
+  $("title").textContent = `Proof view · ${c.playbook || c.kind}`;
+  $("cid").textContent = `campaign ${c._id} · ${c.state}`;
+  renderVerdict(report); renderStats(report); renderDag(report); renderCards(report);
+}
+
+$("dag").addEventListener("click", (ev) => {
+  const node = ev.target.closest(".node");
+  if (!node) return;
+  document.querySelectorAll(".card.focus").forEach((el) => el.classList.remove("focus"));
+  const card = $(`a-${node.dataset.id}`);
+  if (card) { card.classList.add("focus"); card.scrollIntoView({ behavior: "smooth", block: "start" }); }
+});
+
+// Stay current: reload when the change stream reports a write for this campaign.
+let pending = null;
+const source = new EventSource("/api/stream");
+source.addEventListener("change", (m) => {
+  const e = JSON.parse(m.data);
+  const mine = e.id === campaignId || (e.doc && e.doc.campaign_id === campaignId);
+  if (mine && !pending) pending = setTimeout(() => { pending = null; load(); }, 150);
+});
+load();
+</script>
+</body>
+</html>
