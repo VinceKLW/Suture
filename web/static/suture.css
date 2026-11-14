@@ -1,0 +1,186 @@
+/* suture design system (DESIGN.md) + liquid glass.
+   Night, not neon. One amber light per view. Proof over decoration. */
+
+:root {
+  /* surfaces + text */
+  --night: #060807;  --forest: #0D1210;  --moss: #141B18;
+  --hairline: rgba(255,255,255,.08);  --hairline-strong: rgba(255,255,255,.14);
+  --ink: #F2F0EA;  --sage: #969A94;  --fog: #62665F;
+  /* light */
+  --amber: #E8A252;  --amber-soft: rgba(232,162,82,.12);  --dusk: #7FA7D9;
+  /* ledger states */
+  --state-intended: #6E746F;  --state-sent: #7FA7D9;  --state-receipt: #D9B26A;
+  --state-verified: #8DBF86;  --state-unknown: #6FB7B0;  --state-failed: #E0705C;
+  /* type */
+  --font-text: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  /* shape + motion */
+  --r-sm: 6px;  --r-md: 12px;  --r-pill: 999px;
+  --ease: cubic-bezier(.2,.7,.2,1);  --dur: 300ms;
+  /* glass */
+  --light-angle: 160deg;
+}
+
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body {
+  margin: 0; color: var(--ink); background: var(--night);
+  font: 15px/1.55 var(--font-text); letter-spacing: -.005em;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+.mono { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.45; letter-spacing: 0; }
+.num { font-variant-numeric: tabular-nums; }
+.spacer { flex: 1; }
+::selection { background: var(--amber-soft); color: var(--ink); }
+
+/* ---------------------------------------------------------------- photo + grain */
+/* The photo is fixed to the viewport so the glass copy of it never has to move on scroll. */
+.bg {
+  position: fixed; inset: 0; z-index: -3; pointer-events: none;
+  background: var(--night) url("/static/night.jpg") 50% 100% / cover no-repeat;
+}
+.bg::after {   /* keep the night quiet behind the panels */
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 50% 30%, rgba(6,8,7,.25), rgba(6,8,7,.7));
+}
+.grain {       /* 2-3% film grain on the photo, under the UI */
+  position: fixed; inset: -50%; z-index: -2; pointer-events: none; opacity: .028;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------------------------------------------------------------- liquid glass
+   A copy of the photo, aligned 1:1 with .bg, bent through an SVG displacement map
+   (squircle dome + Snell's law, see glass.js), under a forest tint and a specular
+   rim lit from the pointer. Only on top-level panels: never glass on glass. */
+.glass { position: relative; isolation: isolate; overflow: hidden; border-radius: var(--r-md); }
+.glass-refract {
+  position: absolute; inset: -24px; z-index: -3; pointer-events: none;
+  background: var(--forest) url("/static/night.jpg") no-repeat;
+  filter: blur(22px) saturate(1.2);
+  transform: translateZ(0);
+}
+.glass-tint {
+  position: absolute; inset: 0; z-index: -2; pointer-events: none; border-radius: inherit;
+  background:
+    radial-gradient(120% 70% at var(--glare-x, 30%) var(--glare-y, 0%), rgba(255,255,255,.055), rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, rgba(13,18,16,.70), rgba(13,18,16,.80));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(255,255,255,.04), inset 0 0 24px rgba(255,255,255,.03);
+}
+.glass::after {
+  content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit; padding: 1px;
+  background: linear-gradient(var(--light-angle),
+    rgba(255,255,255,.42), rgba(255,255,255,.10) 28%, rgba(255,255,255,.05) 50%, rgba(255,255,255,.10) 72%, rgba(255,255,255,.26));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.glass > .glass-content { position: relative; z-index: 1; height: 100%; }
+/* Lite: no refraction (small screens, scrolling layouts, reduced transparency). */
+.glass-lite .glass-refract { display: none; }
+.glass-lite .glass { -webkit-backdrop-filter: blur(24px) saturate(1.2); backdrop-filter: blur(24px) saturate(1.2); }
+.glass-lite .glass-tint { background: linear-gradient(180deg, rgba(13,18,16,.72), rgba(13,18,16,.82)); }
+@media (prefers-reduced-transparency: reduce) {
+  .glass-refract { display: none; }
+  .glass-tint { background: rgba(13,18,16,.96); }
+}
+
+/* ---------------------------------------------------------------- header */
+.topbar { margin: 16px 16px 0; }
+.topbar > .glass-content { display: flex; align-items: center; gap: 14px; padding: 12px 18px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
+.brand img { width: 30px; height: 30px; display: block; }
+.brand .word { font-size: 20px; line-height: 1; letter-spacing: -.01em; }
+.topbar .tagline { color: var(--sage); font-size: 13px; }
+.topbar .crumb { color: var(--fog); font-size: 13px; }
+
+.live { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border: 1px solid var(--hairline); border-radius: var(--r-pill); font-size: 13px; color: var(--sage); }
+.live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fog); }
+.live.on { color: var(--ink); }
+.live.on .dot { background: var(--state-verified); animation: breathe 2.4s var(--ease) infinite; }
+
+/* ---------------------------------------------------------------- panels */
+.panel > .glass-content { display: flex; flex-direction: column; min-height: 0; }
+.panel-head { display: flex; align-items: flex-end; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid var(--hairline); }
+.kicker { font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); margin-bottom: 4px; }
+.panel-head h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; }
+.panel-head .count { margin-left: auto; color: var(--fog); font-size: 13px; font-variant-numeric: tabular-nums; }
+.scroll { overflow: auto; min-height: 0; flex: 1; scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
+.empty { padding: 32px 20px; }
+.empty .t { font-size: 20px; line-height: 1.3; color: var(--sage); }
+.empty.big .t { font-size: 32px; line-height: 1.15; letter-spacing: -.01em; }
+.empty .s { font-size: 13px; color: var(--fog); margin-top: 6px; }
+
+/* ---------------------------------------------------------------- badges + tags */
+:where(.badge, .stitch, .tc) { --c: var(--state-intended); }
+.badge {
+  display: inline-flex; align-items: center; padding: 1px 8px; border-radius: var(--r-sm);
+  font-size: 12px; line-height: 18px; font-weight: 500; white-space: nowrap; color: var(--c);
+  border: 1px solid color-mix(in srgb, var(--c) 50%, transparent);
+  background: color-mix(in srgb, var(--c) 8%, transparent);
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+.badge.now { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, transparent); background: var(--amber-soft); }
+.s-intended { --c: var(--state-intended); } .s-sent { --c: var(--state-sent); } .s-receipt { --c: var(--state-receipt); }
+.s-verified { --c: var(--state-verified); } .s-unknown { --c: var(--state-unknown); } .s-failed { --c: var(--state-failed); }
+.s-running { --c: var(--state-sent); } .s-succeeded { --c: var(--state-verified); } .s-paused { --c: var(--state-receipt); }
+.badge.s-unknown, .stitch.s-unknown i { animation: breathe 2.4s var(--ease) infinite; }
+.tc { color: var(--c); }
+.tag { --c: var(--dusk); display: inline-flex; padding: 0 7px; border-radius: var(--r-sm); font-size: 11.5px; line-height: 18px; color: var(--c);
+  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); white-space: nowrap; }
+.tag.adapt { --c: var(--state-unknown); }
+.tag.bad { --c: var(--state-failed); }
+
+/* ---------------------------------------------------------------- stats */
+.stats { display: flex; flex-wrap: wrap; }
+.stat { padding: 2px 20px; border-left: 1px solid var(--hairline); text-align: right; }
+.stat:first-child { border-left: 0; padding-left: 0; }
+.stat b { display: block; font-size: 32px; line-height: 1; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--ink); }
+.stat span { display: block; margin-top: 8px; font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); }
+.stats.small .stat b { font-size: 24px; }
+
+/* ---------------------------------------------------------------- seam timeline
+   One line, a stitch per state reached. A crash is a short gap, then the line goes on. */
+.seam { display: flex; align-items: flex-start; padding-top: 2px; overflow-x: auto; scrollbar-width: none; }
+.stitch { position: relative; min-width: 92px; padding-top: 22px; flex: 0 0 auto; }
+.stitch::before {            /* the seam segment leading into this stitch */
+  content: ""; position: absolute; top: 9px; left: -92px; width: 92px; height: 1px; background: var(--hairline-strong);
+}
+.stitch:first-child::before { display: none; }
+.stitch.gap::before {        /* crashed here: the line stops, a gap, then continues */
+  background: linear-gradient(90deg, var(--hairline-strong) 0 38%, transparent 38% 62%, var(--hairline-strong) 62%);
+}
+.stitch i { position: absolute; top: 2px; left: 0; width: 2px; height: 15px; border-radius: 2px; background: var(--c);
+  transition: background-color var(--dur) var(--ease); }
+.stitch.now i { background: var(--amber); box-shadow: 0 0 8px rgba(232,162,82,.55); }
+.stitch b { display: block; font-size: 13px; font-weight: 500; color: var(--c); line-height: 1.3; }
+.stitch.now b { color: var(--amber); }
+.stitch time { display: block; font-family: var(--font-mono); font-size: 11.5px; color: var(--fog); }
+.stitch .gapnote { position: absolute; top: -2px; left: -58px; font-size: 10.5px; color: var(--dusk); white-space: nowrap; }
+
+/* ---------------------------------------------------------------- links + buttons */
+a.link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--fog); text-underline-offset: 3px; text-decoration-thickness: 1px;
+  font-size: 13px; transition: text-decoration-color var(--dur) var(--ease); }
+a.link:hover { text-decoration-color: var(--amber); }
+.btn { font: inherit; font-size: 13px; color: var(--ink); background: var(--moss); border: 1px solid var(--hairline-strong); border-radius: var(--r-sm);
+  padding: 6px 12px; cursor: pointer; transition: border-color var(--dur) var(--ease); white-space: nowrap; }
+.btn:hover, .btn:focus-visible { border-color: var(--amber); outline: none; }
+.btn:disabled { color: var(--fog); cursor: default; border-color: var(--hairline); }
+.btn-ghost { font: inherit; font-size: 13px; color: var(--sage); background: none; border: 0; cursor: pointer; padding: 0; }
+.btn-ghost:hover { color: var(--ink); }
+:focus-visible { outline: 1px solid var(--dusk); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- verdict block */
+.verdict { --c: var(--fog); border-left: 2px solid var(--c); padding: 6px 0 6px 14px; }
+.verdict.ok { --c: var(--state-verified); } .verdict.bad { --c: var(--state-failed); } .verdict.wait { --c: var(--dusk); }
+.verdict .big { display: block; color: var(--ink); }
+.verdict .why { display: block; color: var(--sage); font-size: 13px; margin-top: 2px; }
+
+/* ---------------------------------------------------------------- motion */
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes arrive { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes flash { from { background-color: var(--amber-soft); } to { background-color: transparent; } }
+.arrive { animation: arrive 400ms var(--ease) both; }
+.flash { animation: flash 1.2s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

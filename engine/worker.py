@@ -26,6 +26,7 @@ import os
 import sys
 
 from engine.campaigns import create_campaign
+from engine.crash import request_crash  # noqa: F401  (re-export: chaos panel kill switch)
 from engine.db import ensure_indexes, get_db
 from engine.playbook import run_campaign
 from engine.reconciler import Reconciler
