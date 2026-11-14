@@ -28,4 +28,4 @@ async def health():
 
 @app.get("/", include_in_schema=False)
 async def index():
-    return FileResponse(WEB / "index.html")
+    return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache"})  # always the current page
