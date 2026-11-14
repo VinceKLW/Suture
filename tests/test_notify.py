@@ -24,6 +24,7 @@ from adapters.notify import (
 )
 from engine.adapter import Adapter, get_adapter
 from engine.playbook import load_playbook
+from tests.engine_helpers import engine_db, requires_mongo  # noqa: F401
 
 ACTION = {"operation": "send_email", "params": {"to": "owner@example.com", "subject": "Key rotated", "body": "All good."}}
 
@@ -133,9 +134,45 @@ class _DeadMailbox:
 async def test_unreachable_mailbox_is_unknown_not_verified():
     a = NotifyEmailAdapter(_DeadMailbox())
     assert (await a.verify("act-7", {}))["outcome"] == "unknown"
-    assert (await a.execute("act-7", await a.prepare(ACTION)))["receipt"] is False
     with pytest.raises(MailboxUnavailable):  # "cannot tell" must not read as "not sent"
         await a.lookup("act-7")
+    # A transport error is not a rejection: it propagates so the engine keeps the
+    # action in `sent` and retries through lookup(), instead of failing the campaign.
+    with pytest.raises(ConnectionRefusedError):
+        await a.execute("act-7", await a.prepare(ACTION))
+    assert a.send_calls == 0
+
+
+def test_engine_worker_setup_hook_registers_the_adapter():
+    from adapters.notify import adapter, register_notify_adapters
+    from engine.worker import DEFAULT_SETUP, run_setup
+
+    assert register_notify_adapters() == {"notify_email": adapter}
+    hook = "adapters.notify:register_notify_adapters"
+    assert hook in DEFAULT_SETUP and run_setup([hook]) == [hook]
+    assert get_adapter("notify_email") is adapter
+
+
+@requires_mongo
+async def test_notify_playbook_runs_on_the_real_engine(engine_db, tmp_path, monkeypatch):  # noqa: F811
+    """PRD §6: the email is sent, then independently verified by read-back,
+    driven by slice A's runner through the state machine."""
+    from adapters.notify import adapter
+    from engine.campaigns import create_campaign, list_actions
+    from engine.playbook import run_campaign
+
+    monkeypatch.setattr(adapter, "_mailbox", SpoolMailbox(tmp_path / "spool"))
+    cid = await create_campaign(
+        "notify", kind="leaked_key", trigger={"summary": "key rotated"}, config={"owner_email": "owner@example.com"}
+    )
+    assert await run_campaign(cid) == "succeeded"
+
+    [action] = await list_actions(cid)
+    assert action["state"] == "verified" and action["step_id"] == "notify_owner"
+    assert [t["to"] for t in action["transitions"]] == ["sent", "receipt", "verified"]
+    assert action["observed"]["copies"] == 1 and action["observed"]["action_id"] == str(action["_id"])
+    assert action["external_ref"]["subject"].endswith("Incident resolved: key rotated")
+    assert len(adapter.mailbox.fetch(str(action["_id"]))) == 1
 
 
 # ---- mailhog backend, against an in-process stand-in ------------------------

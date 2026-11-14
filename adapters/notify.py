@@ -231,9 +231,12 @@ class NotifyEmailAdapter:
         msg = self._build(action_id, payload)
         try:
             await asyncio.to_thread(self.mailbox.send, msg)
-        except (OSError, smtplib.SMTPException) as exc:
-            # Not acknowledged. The engine decides between unknown and failed.
-            return {"external_ref": {"backend": self.mailbox.backend, "error": str(exc)}, "receipt": False}
+        except smtplib.SMTPRecipientsRefused as exc:
+            # The server answered and said no: a definite rejection, not a retry case.
+            return {"external_ref": {"backend": self.mailbox.backend, "error": f"recipients refused: {exc}"}, "receipt": False}
+        # Any other transport error (connection refused, timeout, dropped mid-send)
+        # propagates: we cannot tell whether the mail left, so the engine keeps the
+        # action in `sent` and asks lookup() before it tries again.
         self.send_calls += 1
         return {
             "external_ref": {
@@ -281,3 +284,10 @@ class NotifyEmailAdapter:
 
 
 adapter = register(NotifyEmailAdapter())
+
+
+def register_notify_adapters() -> dict:
+    """Setup hook for the engine worker (engine/worker.py DEFAULT_SETUP).
+    Importing this module already registers the adapter; this makes it explicit."""
+    register(adapter)
+    return {adapter.name: adapter}
