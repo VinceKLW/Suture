@@ -1,19 +1,190 @@
-"""Simulated GitHub PRs + CI (rename_mode for the field-rename demo). Owner: slice C. See PRD §1.2 for the contract.
-Must stamp action_id on every execute() and honor lookup()."""
+"""Simulated GitHub PR + CI adapter (PRD §5).
+
+Idempotency: every PR's branch name is `recovery/<action_id>` and the body
+includes `<!-- action-id: X -->`, so lookup() can dedupe after a crash.
+
+Demo hook: set rename_mode=True on the module store to simulate GitHub
+renaming the CI status field from `status` to `conclusion`. verify() will
+then return `unknown` with the raw observed payload; model/mapping.py
+proposes a mapping and verify() is re-run with it.
+"""
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass, field
+from typing import Any
+
 from engine.adapter import ExecuteResult, LookupResult, VerifyResult
 
 
+@dataclass
+class _Repo:
+    secrets: dict[str, str] = field(default_factory=dict)
+    prs: dict[int, dict] = field(default_factory=dict)       # pr_number -> {branch, head_sha, body, action_id, merged}
+    ci: dict[str, str] = field(default_factory=dict)         # head_sha -> "success" | "failure" | "pending"
+    branch_protection: bool = False                          # layout-change demo (slice C stretch)
+    next_pr_number: int = 1
+
+
+@dataclass
+class _Store:
+    repos: dict[str, _Repo] = field(default_factory=dict)
+    rename_mode: bool = False     # demo switch: renames `status` → `conclusion` in verify responses
+    expected_field: str = "status"  # what verify() code looks for; mapping prompt may update this
+
+    def repo(self, name: str) -> _Repo:
+        return self.repos.setdefault(name, _Repo())
+
+
+# Module-level singleton so tests, demo, and the adapter all share one world.
+store = _Store()
+
+
+def _branch_name(action_id: str) -> str:
+    return f"recovery/{action_id}"
+
+
+def _find_pr_by_action(repo: _Repo, action_id: str) -> tuple[int, dict] | None:
+    for pr_number, pr in repo.prs.items():
+        if pr.get("action_id") == action_id:
+            return pr_number, pr
+    return None
+
+
 class GithubPrAdapter:
+    """Supported operations (params shape):
+
+    - open_pr: { repo, title, body, head_sha, ci_result?: "success"|"failure" }
+        ci_result is a simulation hook: when given, the CI for head_sha is
+        preseeded so wait_ci / verify can resolve deterministically.
+    - wait_ci: { repo, head_sha, timeout_s?: int }
+        polls store.repo(repo).ci[head_sha] until not "pending" or timeout.
+
+    verify() for both operations checks the CI result is "success". When
+    store.rename_mode is True, the response field is renamed, so verify()
+    returns unknown and carries the raw payload in `observed`.
+    """
+
     name = "github_pr"
 
     async def prepare(self, action: dict) -> dict:
-        raise NotImplementedError
+        return dict(action.get("params", {}))
 
     async def execute(self, action_id: str, payload: dict) -> ExecuteResult:
-        raise NotImplementedError
+        op = payload.get("operation") or payload.get("op") or "open_pr"
+        repo_name = payload["repo"]
+        repo = store.repo(repo_name)
+
+        if op == "open_pr":
+            # Idempotency: if a PR for this action_id already exists, return it.
+            existing = _find_pr_by_action(repo, action_id)
+            if existing:
+                pr_number, pr = existing
+                return {"external_ref": {"repo": repo_name, "pr_number": pr_number, "head_sha": pr["head_sha"]}, "receipt": True}
+
+            if repo.branch_protection and "reviewer" not in payload:
+                # Layout change: branch protection enabled mid-run; signal failure so playbook replans.
+                return {"external_ref": {"repo": repo_name, "needs_reviewer": True}, "receipt": False}
+
+            pr_number = repo.next_pr_number
+            repo.next_pr_number += 1
+            head_sha = payload.get("head_sha") or f"sha-{action_id[:8]}"
+            body = (payload.get("body") or "") + f"\n\n<!-- action-id: {action_id} -->"
+            repo.prs[pr_number] = {
+                "branch": _branch_name(action_id),
+                "head_sha": head_sha,
+                "body": body,
+                "action_id": action_id,
+                "title": payload.get("title", "Recovery PR"),
+                "merged": False,
+            }
+            # Preseed CI if the caller gave us a target outcome.
+            if "ci_result" in payload:
+                repo.ci[head_sha] = payload["ci_result"]
+            else:
+                repo.ci.setdefault(head_sha, "pending")
+            return {"external_ref": {"repo": repo_name, "pr_number": pr_number, "head_sha": head_sha}, "receipt": True}
+
+        if op == "wait_ci":
+            head_sha = payload["head_sha"]
+            timeout_s = float(payload.get("timeout_s", 10))
+            waited = 0.0
+            while repo.ci.get(head_sha, "pending") == "pending" and waited < timeout_s:
+                await asyncio.sleep(0.1)
+                waited += 0.1
+            return {"external_ref": {"repo": repo_name, "head_sha": head_sha}, "receipt": True}
+
+        raise ValueError(f"Unknown github_pr operation: {op!r}")
 
     async def lookup(self, action_id: str) -> LookupResult:
-        raise NotImplementedError
+        # Scan all repos for a PR carrying this action_id (idempotency recovery).
+        for repo_name, repo in store.repos.items():
+            found = _find_pr_by_action(repo, action_id)
+            if found:
+                pr_number, pr = found
+                return {
+                    "exists": True,
+                    "external_ref": {"repo": repo_name, "pr_number": pr_number, "head_sha": pr["head_sha"]},
+                }
+        return {"exists": False, "external_ref": None}
 
     async def verify(self, action_id: str, payload: dict) -> VerifyResult:
-        raise NotImplementedError
+        """Verify that the PR's CI landed green.
+
+        Reads payload['expected_field'] if the caller wants to override the
+        default field name (this is how model-proposed mappings are applied).
+        """
+        op = payload.get("operation") or payload.get("op") or "open_pr"
+        repo_name = payload["repo"]
+        repo = store.repo(repo_name)
+        found = _find_pr_by_action(repo, action_id)
+        if not found:
+            return {"outcome": "failed", "observed": {"reason": "no PR found for action"}}
+        pr_number, pr = found
+        head_sha = pr["head_sha"]
+        ci_value = repo.ci.get(head_sha, "pending")
+        if ci_value == "pending":
+            return {"outcome": "unknown", "observed": {"ci": "pending", "head_sha": head_sha}}
+
+        # Build the raw response the "GitHub API" would hand us. rename_mode
+        # simulates GitHub silently renaming `status` → `conclusion`.
+        if store.rename_mode:
+            raw = {"conclusion": ci_value, "head_sha": head_sha, "pr_number": pr_number}
+        else:
+            raw = {"status": ci_value, "head_sha": head_sha, "pr_number": pr_number}
+
+        expected_field = payload.get("expected_field", store.expected_field)
+        if expected_field not in raw:
+            # Field we expected isn't there — surface the raw payload so the
+            # model can propose a mapping. verify() alone never advances state.
+            return {"outcome": "unknown", "observed": raw}
+
+        if raw[expected_field] == "success":
+            return {"outcome": "verified", "observed": raw}
+        return {"outcome": "failed", "observed": raw}
+
+
+# Register at import so engine.adapter.get_adapter("github_pr") works.
+from engine.adapter import register  # noqa: E402
+
+register(GithubPrAdapter())
+
+
+# ---- Demo helpers (not part of the Adapter Protocol) ------------------------
+
+def set_rename_mode(on: bool) -> None:
+    store.rename_mode = on
+
+
+def set_ci(repo_name: str, head_sha: str, result: str) -> None:
+    store.repo(repo_name).ci[head_sha] = result
+
+
+def enable_branch_protection(repo_name: str) -> None:
+    store.repo(repo_name).branch_protection = True
+
+
+def reset_store() -> None:
+    store.repos.clear()
+    store.rename_mode = False
+    store.expected_field = "status"
