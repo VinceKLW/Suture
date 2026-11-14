@@ -35,12 +35,15 @@ This is a guide, not code. Nothing in `web/` has been changed to match it yet; t
 A rounded frame holding a seam closed by three stitches: the incident, sewn shut one step at a time. Single weight,
 round caps, drawn on a 100 × 100 grid (`docs/images/logo.svg`).
 
-| Asset | Use |
-|---|---|
-| `docs/images/logo.png` | Mark on a dark tile. README, favicon, slides. |
-| `docs/images/logo-mark.png` | White mark on transparent. Over photos and dark UI. |
-| `docs/images/logo.svg` | The vector source. Favicon and any size in the web UI (`stroke` is `--ink`). |
-| `docs/images/lockup.png` | Mark + "suture" wordmark, transparent. Slides and the demo video. |
+| Preview | Asset | Use |
+|---|---|---|
+| <img src="./docs/images/logo.png" alt="Logo on a dark tile" width="72"/> | `docs/images/logo.png` | Mark on a dark tile. README, favicon, slides. |
+| <img src="./docs/images/logo-mark-preview.png" alt="White mark" width="72"/> | `docs/images/logo-mark.png` | White mark on transparent. Over photos and dark UI. |
+| (same mark) | `docs/images/logo.svg` | The vector source. Favicon and any size in the web UI (`stroke` is `--ink`, so it's invisible on a light page). |
+| <img src="./docs/images/lockup-preview.png" alt="suture lockup" width="180"/> | `docs/images/lockup.png` | Mark + "suture" wordmark, transparent. Slides and the demo video. |
+
+The previews of the white files sit on a dark tile so they show up on GitHub's light theme; the files themselves
+are transparent.
 
 - Keep clear space around the mark of at least half its width.
 - Always white (`--ink`) on a dark surface. Never recolour it, add a glow, or put it on a light background.
@@ -206,8 +209,8 @@ images with ChatGPT image generation):
 - Cinematic, analog-film photography of quiet nature at night or blue hour: moss, ferns, wild grass, small white and
   yellow wildflowers, still black water.
 - Scenes in the spirit of Perplexity's partner ads: a pond of ripples framed by ferns seen from above, one object
-  resting on a mound of moss against pure black, light streaks with floating photo tiles, a person in an armchair
-  in a meadow watching a line of light.
+  resting on a mound of moss against pure black, light streaks drifting past flowers, a line of light over a
+  meadow.
 - A small clear glass sphere appears in every image as a quiet recurring motif, never the whole subject (except the
   header, where it holds the logo).
 - Long-exposure light streaks in muted blue fading to warm amber. Soft volumetric beams.
@@ -222,6 +225,30 @@ under the image. Title size is about 3.4% of the image width. No people in the s
 
 **Header** is 3:1: the glass sphere holding the logo mark, "suture" in Geist Regular beside it with one short line
 in `--sage` under it.
+
+### Gallery
+
+Every image we have, at 3:1. Use these as the reference for anything new.
+
+**Header** (`docs/images/header-v3.webp`)
+
+<img src="./docs/images/header-v3.webp" alt="suture header" width="100%"/>
+
+**Crash recovery** (`docs/images/crash-v3.webp`): a single set of ripples on a fern-framed pond.
+
+<img src="./docs/images/crash-v3.webp" alt="Crash it. It finishes." width="100%"/>
+
+**Rotate** (`docs/images/rotate-v3.webp`): the new key on moss, the old one turning to dust.
+
+<img src="./docs/images/rotate-v3.webp" alt="Rotates a leaked key." width="100%"/>
+
+**Recall** (`docs/images/recall-v3.webp`): light streaks drifting past night flowers.
+
+<img src="./docs/images/recall-v3.webp" alt="Remembers what worked." width="100%"/>
+
+**Proof** (`docs/images/proof-v3.webp`): one line of light with a point for every step.
+
+<img src="./docs/images/proof-v3.webp" alt="Proof for every step." width="100%"/>
 
 ---
 
