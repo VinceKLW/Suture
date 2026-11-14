@@ -48,7 +48,7 @@ async def promote(
     db = get_db()
 
     async with client.start_session() as session:
-        async def _txn():
+        async def _txn(_session):  # pymongo's with_transaction passes the session in
             # 1) fenced state transition inside the transaction
             ok = await transition(
                 action_id,
