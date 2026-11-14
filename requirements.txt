@@ -5,7 +5,7 @@ python-dotenv>=1.0
 certifi>=2024.7       # macOS Python 3.13 doesn't trust system CAs by default
 fastapi>=0.115
 uvicorn>=0.30
-voyageai>=0.3
+httpx>=0.27           # embed.py talks to MongoDB AI Model APIs directly (no Voyage SDK)
 pytest>=8.0
 pytest-asyncio>=0.24
 # Model provider: slice C picked Anthropic.
