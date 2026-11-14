@@ -46,8 +46,10 @@ round caps, drawn on a 100 × 100 grid (`docs/images/logo.svg`).
 - Always white (`--ink`) on a dark surface. Never recolour it, add a glow, or put it on a light background.
 - The name is always **suture**, all lowercase, even at the start of a sentence. Never "Suture" or "SUTURE".
 - The wordmark is "suture" in Geist Regular beside the mark, its x-height about half the mark's height.
-- Inside the glass sphere (the header), the mark is soft grey at about half opacity, slightly refracted, about a
-  third of the sphere's width. It should look like it's inside the glass, not printed on it.
+- Inside the glass sphere (the header), the mark is rendered as part of the photo, not pasted on: a frosted,
+  softly glowing pale-grey glyph seen through the glass, about a third of the sphere's width, with faint colour
+  fringing at its edges and the sphere's highlights passing over it. Generate it with the image model from the
+  scene + `logo-mark.png` (as the header was), never as a flat overlay.
 
 ---
 
@@ -213,9 +215,9 @@ images with ChatGPT image generation):
 - Never: neon, purple gradients, cyberpunk, robots, circuit boards, holograms, padlocks, shields, UI screenshots,
   3D-render plastic, text baked into the photo.
 
-**Image + title.** Section images are wide (2:1, never square) with one short title set on the photo in Geist
+**Image + title.** Section images are 3:1 like the header (never square) with one short title set on the photo in Geist
 Regular, `--ink`, in the image's darkest empty area: nothing else. No subtitles, no labels, no stats, no captions
-under the image. Title size is about 3.6% of the image width. See `docs/images/crash.webp`, `rotate.webp`,
+under the image. Title size is about 3.4% of the image width. No people in the scenes. See `docs/images/crash.webp`, `rotate.webp`,
 `recall.webp`, `proof.webp`.
 
 **Header** is 3:1: the glass sphere holding the logo mark, "suture" in Geist Regular beside it with one short line
