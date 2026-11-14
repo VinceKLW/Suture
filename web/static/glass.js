@@ -6,8 +6,8 @@
 // soft glare follow the pointer. Technique from julian-poke-portfolio, generalized
 // to many panels (one filter + map per panel, rebuilt only when its size changes).
 //
-// Falls back to "lite" glass (backdrop blur + tint, no refraction) when the layout
-// scrolls (narrow / short viewports) or the user prefers reduced transparency.
+// Falls back to "lite" glass (backdrop blur + tint, no refraction) on phones or when
+// the user prefers reduced transparency.
 (function () {
   const BG = { url: "/static/night.jpg", w: 1774, h: 600, x: 0.5, y: 1.0 }; // matches .bg in suture.css
   const OVERSCAN = 24;   // .glass-refract inset, so the blur never pulls in empty edges
@@ -22,7 +22,7 @@
   let rev = 0;
 
   function wantLite() {
-    return reducedTransparency || innerWidth < 1100 || innerHeight < 640 || root.dataset.glass === "lite";
+    return reducedTransparency || innerWidth < 760 || root.dataset.glass === "lite";
   }
 
   // surface tilt -> refracted bend; 0 in the flat centre, max at the rim
@@ -84,12 +84,14 @@
     return st;
   }
 
-  // Keep the refracted copy aligned with the fixed, cover-sized background.
+  // Keep the refracted copy aligned 1:1 with the cover-sized .bg photo. Both live in
+  // document coordinates, so scrolling never changes the offset; layout changes do.
   function place(st) {
-    const vw = innerWidth, vh = innerHeight;
-    const s = Math.max(vw / BG.w, vh / BG.h);
+    const bgEl = document.querySelector(".bg");
+    const b = bgEl ? bgEl.getBoundingClientRect() : { left: 0, top: 0, width: innerWidth, height: innerHeight };
+    const s = Math.max(b.width / BG.w, b.height / BG.h);
     const cw = BG.w * s, ch = BG.h * s;
-    const ox = (vw - cw) * BG.x, oy = (vh - ch) * BG.y;
+    const ox = b.left + (b.width - cw) * BG.x, oy = b.top + (b.height - ch) * BG.y;
     const r = st.el.getBoundingClientRect();
     st.refract.style.backgroundSize = `${cw}px ${ch}px`;
     st.refract.style.backgroundPosition = `${ox - (r.left - OVERSCAN)}px ${oy - (r.top - OVERSCAN)}px`;
@@ -163,7 +165,12 @@
   }, { passive: true });
 
   addEventListener("resize", () => { applyMode(); for (const st of items.values()) schedule(st); });
-  // In lite (scrolling) layouts there is no refracted copy to keep aligned, so scroll is free.
+  // A panel above growing (new rows) moves every panel below it: re-align them all.
+  let placing = 0;
+  new ResizeObserver(() => {
+    if (placing) return;
+    placing = requestAnimationFrame(() => { placing = 0; for (const st of items.values()) place(st); });
+  }).observe(document.body);
 
   window.SutureGlass = { scan, applyMode };
   applyMode();

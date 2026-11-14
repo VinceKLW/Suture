@@ -11,21 +11,20 @@
 <link rel="stylesheet" href="/static/suture.css">
 <!-- Owner: slice D. Vanilla HTML + fetch + inline SVG, no build step. Served at /proof/<campaign_id>. Design: DESIGN.md. -->
 <style>
-  html.glass-liquid, html.glass-liquid body { height: 100%; overflow: hidden; }
-  body { display: flex; flex-direction: column; min-height: 100vh; }
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 16px; padding: 16px; }
-  html.glass-lite main { grid-template-rows: none; }
-  @media (max-width: 760px) { main { padding: 12px; } .topbar { margin: 12px 12px 0; } .topbar .tagline, #cid { display: none; }
-    #summary .stat { border-left: 0; padding: 0 16px 0 0; text-align: left; } #summary .stat b { font-size: 24px; } #summary .verdict .big { font-size: 24px; } }
+  .shell { max-width: 1320px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; padding-top: 24px; }
+  @media (max-width: 760px) { .shell { padding: 0 12px 40px; } main { gap: 16px; padding-top: 16px; } .topbar { margin-top: 12px; } .topbar .tagline, #cid { display: none; }
+    #summary .stat b { font-size: 24px; } #summary .verdict .big { font-size: 26px; } }
 
-  #summary > .glass-content { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 20px 32px; padding: 20px 24px; }
-  #summary .verdict { flex: 1 1 360px; }
-  #summary .verdict .big { font-size: 32px; line-height: 1.15; letter-spacing: -.01em; }
-  #summary .verdict .why { font-size: 15px; margin-top: 6px; }
+  #summary > .glass-content { display: flex; flex-direction: column; gap: 28px; padding: 32px 32px 28px; }
+  #summary .verdict { padding: 6px 0 6px 18px; }
+  #summary .verdict .big { font-size: 40px; line-height: 1.1; letter-spacing: -.015em; }
+  #summary .verdict .why { font-size: 15px; margin-top: 10px; max-width: 70ch; }
+  #summary .stats { border-top: 1px solid var(--hairline); padding-top: 22px; row-gap: 18px; }
+  #summary .stat { text-align: left; padding: 0 32px; }
+  #summary .stat:first-child { padding-left: 0; }
 
-  #dagPanel { max-height: 34vh; }
-  html.glass-lite #dagPanel { max-height: none; }
-  #dag { padding: 12px 20px 16px; overflow: auto; }
+  #dag { padding: 24px 24px 28px; overflow-x: auto; }
   #dag svg { display: block; height: auto; }
   #dag .node { cursor: pointer; }
   #dag .node .card { fill: var(--forest); stroke: var(--hairline); stroke-width: 1; transition: fill var(--dur) var(--ease); }
@@ -37,19 +36,19 @@
   #dag .edge { fill: none; stroke: var(--hairline-strong); stroke-width: 1; }
   #dag .edge.hot { stroke: var(--amber); }
 
-  .evidence { border-bottom: 1px solid var(--hairline); scroll-margin-top: 8px; transition: background-color var(--dur) var(--ease); }
+  .evidence { border-bottom: 1px solid var(--hairline); scroll-margin-top: 24px; transition: background-color var(--dur) var(--ease); }
   .evidence.focus { background: var(--amber-soft); }
-  .evidence .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px 20px 6px; }
+  .evidence .head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 24px 24px 10px; }
   .evidence .head .op { font-weight: 500; font-size: 15px; }
   .evidence .head .adapter { color: var(--fog); }
   .evidence .head .aid { margin-left: auto; color: var(--fog); }
-  .evidence .seam { padding: 4px 20px 6px; }
+  .evidence .seam { padding: 6px 24px 10px; }
   .evidence .body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
   @media (max-width: 900px) { .evidence .body { grid-template-columns: minmax(0, 1fr); } }
-  .evidence .colx { padding: 8px 20px 16px; min-width: 0; }
+  .evidence .colx { padding: 10px 24px 24px; min-width: 0; }
   .evidence .colx + .colx { border-left: 1px solid var(--hairline); }
   @media (max-width: 900px) { .evidence .colx + .colx { border-left: 0; border-top: 1px solid var(--hairline); } }
-  .evidence h3 { margin: 10px 0 6px; font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); }
+  .evidence h3 { margin: 14px 0 8px; font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); }
   table.timeline { border-collapse: collapse; width: 100%; font-size: 13px; table-layout: fixed; }
   table.timeline col.c-ts { width: 104px; } table.timeline col.c-move { width: 150px; } table.timeline col.c-dt { width: 76px; }
   table.timeline td { padding: 4px 8px 4px 0; vertical-align: top; border-top: 1px solid var(--hairline); }
@@ -76,6 +75,7 @@
 <div class="bg" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
+<div class="shell">
 <header class="glass topbar">
   <div class="glass-content">
     <a class="brand" href="/"><img src="/static/logo.svg" alt=""><span class="word">suture</span></a>
@@ -109,6 +109,7 @@
     </div>
   </section>
 </main>
+</div>
 
 <script src="/static/glass.js"></script>
 <script>
@@ -162,7 +163,7 @@ function renderStats(report) {
 function renderDag(report, current) {
   const nodes = report.nodes;
   if (!nodes.length) { $("dag").innerHTML = `<div class="empty"><div class="t">No actions yet.</div></div>`; return; }
-  const W = 200, H = 60, GX = 56, GY = 14, PAD = 4;
+  const W = 210, H = 62, GX = 64, GY = 18, PAD = 4;
   const columns = [];
   for (const n of nodes) (columns[n.layer] = columns[n.layer] || []).push(n);
   const tallest = Math.max(...columns.map((c) => (c ? c.length : 0)));

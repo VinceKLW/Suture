@@ -34,9 +34,10 @@ body {
 ::selection { background: var(--amber-soft); color: var(--ink); }
 
 /* ---------------------------------------------------------------- photo + grain */
-/* The photo is fixed to the viewport so the glass copy of it never has to move on scroll. */
-.bg {
-  position: fixed; inset: 0; z-index: -3; pointer-events: none;
+/* Glass and photo scroll together, so the refracted copy never has to be re-rendered on scroll. */
+body { position: relative; min-height: 100vh; }
+.bg {   /* the photo sits at the top of the page and scrolls with it; its bottom fades into --night */
+  position: absolute; top: 0; left: 0; right: 0; height: max(100vh, 780px); z-index: -3; pointer-events: none;
   background: var(--night) url("/static/night.jpg") 50% 100% / cover no-repeat;
 }
 .bg::after {   /* keep the night quiet behind the panels */
@@ -85,8 +86,9 @@ body {
 }
 
 /* ---------------------------------------------------------------- header */
-.topbar { margin: 16px 16px 0; }
-.topbar > .glass-content { display: flex; align-items: center; gap: 14px; padding: 12px 18px; }
+.shell { max-width: 1480px; margin: 0 auto; padding: 0 24px 64px; }
+.topbar { margin-top: 24px; }
+.topbar > .glass-content { display: flex; align-items: center; gap: 16px; padding: 14px 24px; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
 .brand img { width: 30px; height: 30px; display: block; }
 .brand .word { font-size: 20px; line-height: 1; letter-spacing: -.01em; }
@@ -100,12 +102,12 @@ body {
 
 /* ---------------------------------------------------------------- panels */
 .panel > .glass-content { display: flex; flex-direction: column; min-height: 0; }
-.panel-head { display: flex; align-items: flex-end; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid var(--hairline); }
+.panel-head { display: flex; align-items: flex-end; gap: 12px; padding: 22px 24px 16px; border-bottom: 1px solid var(--hairline); }
 .kicker { font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); margin-bottom: 4px; }
 .panel-head h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; }
 .panel-head .count { margin-left: auto; color: var(--fog); font-size: 13px; font-variant-numeric: tabular-nums; }
 .scroll { overflow: auto; min-height: 0; flex: 1; scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
-.empty { padding: 32px 20px; }
+.empty { padding: 40px 24px; }
 .empty .t { font-size: 20px; line-height: 1.3; color: var(--sage); }
 .empty.big .t { font-size: 32px; line-height: 1.15; letter-spacing: -.01em; }
 .empty .s { font-size: 13px; color: var(--fog); margin-top: 6px; }
