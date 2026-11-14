@@ -48,20 +48,20 @@ async def promote(
     db = get_db()
 
     async with client.start_session() as session:
-        async def _txn():
+        async def _txn(sess):
             # 1) fenced state transition inside the transaction
             ok = await transition(
                 action_id,
                 ActionState.RECEIPT.value,
                 ActionState.VERIFIED.value,
                 reason=reason,
-                session=session,
+                session=sess,
             )
             if not ok:
                 # Abort the transaction by raising; caller gets False.
                 raise _FenceLost()
             # 2) insert the experience inside the same transaction
-            await db.experiences.insert_one(experience_doc, session=session)
+            await db.experiences.insert_one(experience_doc, session=sess)
 
         try:
             await session.with_transaction(_txn)
