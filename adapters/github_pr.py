@@ -138,6 +138,16 @@ class GithubPrAdapter:
             # Read-only: the check itself happens in verify(). Safe to repeat.
             return {"external_ref": {"repo": repo_name, "head_sha": payload.get("head_sha")}, "receipt": True}
 
+        if op == "merge_pr":
+            # Simulated merge: flip the flag on the in-memory PR. Idempotent.
+            existing = _find_pr_by_action(repo, action_id)
+            if not existing:
+                return {"external_ref": {"repo": repo_name, "merged": False, "reason": "no PR found"}, "receipt": False}
+            pr_number, pr = existing
+            pr["merged"] = True
+            return {"external_ref": {"repo": repo_name, "pr_number": pr_number, "merged": True,
+                                     "head_sha": pr["head_sha"]}, "receipt": True}
+
         raise ValueError(f"Unknown github_pr operation: {op!r}")
 
     async def lookup(self, action_id: str) -> LookupResult:
@@ -225,6 +235,9 @@ class GithubPrAdapter:
             return {"external_ref": {"repo": repo_name, "head_sha": head_sha, "ci": ci["state"]}, "receipt": True}
         if op in ("verify", "check_ci"):
             return {"external_ref": {"repo": repo_name, "head_sha": payload.get("head_sha")}, "receipt": True}
+        if op == "merge_pr":
+            ref = await real.merge_pr(repo_name, action_id)
+            return {"external_ref": ref, "receipt": True}
         raise ValueError(f"Unknown github_pr operation: {op!r}")
 
     async def _verify_real(self, action_id: str, op: str | None, repo_name: str, payload: dict) -> VerifyResult:
@@ -235,6 +248,19 @@ class GithubPrAdapter:
             ok = pr["head"]["ref"] == real.branch_name(action_id) and real.marker(action_id) in (pr.get("body") or "")
             return {"outcome": "verified" if ok else "failed",
                     "observed": {"pr_number": pr["number"], "url": pr["html_url"], "head_sha": pr["head"]["sha"]}}
+
+        if op == "merge_pr":
+            # Re-read the PR from GitHub; truth lives there, not in our ledger.
+            pr = await real.get_pr(repo_name, action_id)
+            if not pr:
+                return {"outcome": "failed", "observed": {"reason": "no PR on GitHub for this action"}}
+            if pr.get("merged") or pr.get("merged_at"):
+                return {"outcome": "verified",
+                        "observed": {"pr_number": pr["number"], "url": pr["html_url"], "merged": True,
+                                     "merge_sha": pr.get("merge_commit_sha")}}
+            return {"outcome": "failed",
+                    "observed": {"pr_number": pr["number"], "url": pr["html_url"], "merged": False,
+                                 "mergeable_state": pr.get("mergeable_state")}}
 
         head_sha = payload.get("head_sha")
         if not head_sha:

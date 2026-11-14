@@ -14,6 +14,10 @@ steps:
     inputs:
       to: "${campaign.config.owner_email}"
       subject: "Incident resolved: ${campaign.trigger.summary}"
+      # When campaign_id is present, the notify adapter builds a rich retro email
+      # (proof timeline + model analysis + PR link + merge status). The plain body
+      # below is the fallback if the compose step fails for any reason.
+      campaign_id: "${campaign._id}"
       body: >-
         The recovery campaign for this incident has finished.
         Every action was independently verified; see the proof view for the
