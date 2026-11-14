@@ -76,6 +76,25 @@
   @media (max-width: 760px) { .compare { grid-template-columns: minmax(0, 1fr); } .side + .side { border-left: 0; border-top: 1px solid var(--hairline); } }
 
 
+  /* resizable layout (static/layout.js): drag the gutters between panels */
+  html.layout-on, html.layout-on body { height: 100%; overflow: hidden; }
+  html.layout-on main { display: flex; gap: 0; }
+  html.layout-on #comparePanel, html.layout-on .panel { max-height: none; }
+  html.layout-on .scroll { max-height: none; }
+  .lcol { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .lcol > .panel { min-height: 0; }
+  html.layout-stack main { display: flex; flex-direction: column; gap: 16px; }
+  html.layout-stack .lcol { display: contents; }
+  .gutter { flex: 0 0 16px; position: relative; touch-action: none; }
+  .gutter.v { cursor: col-resize; } .gutter.h { cursor: row-resize; }
+  .gutter::after { content: ""; position: absolute; border-radius: 2px; background: var(--amber); opacity: 0; transition: opacity var(--dur) var(--ease); }
+  .gutter.v::after { top: 50%; left: 7px; width: 2px; height: 48px; transform: translateY(-50%); }
+  .gutter.h::after { left: 50%; top: 7px; height: 2px; width: 48px; transform: translateX(-50%); }
+  .gutter:hover::after, .gutter.active::after { opacity: .85; }
+  .gutter.active.v::after { height: 100%; } .gutter.active.h::after { width: 100%; }
+  html.resizing-v, html.resizing-v * { cursor: col-resize !important; user-select: none; }
+  html.resizing-h, html.resizing-h * { cursor: row-resize !important; user-select: none; }
+
   /* chaos: a header button opens the panel as a popover, so the incident list keeps the full column */
   .chaos-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--sage);
     background: none; border: 1px solid var(--hairline); border-radius: var(--r-pill); cursor: pointer; transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease); }
@@ -119,6 +138,7 @@
     <a class="brand" href="/"><img src="/static/logo.svg" alt=""><span class="word">suture</span></a>
     <span class="tagline">Finishes the job, even after a crash.</span>
     <span class="spacer"></span>
+    <button class="btn-ghost" id="resetLayout" type="button" hidden title="Put the panels back where they started">Reset layout</button>
     <button class="chaos-toggle" id="chaosToggle" type="button" aria-controls="chaosPanel" aria-expanded="false" hidden title="Demo controls: break a running campaign"><span class="dot"></span>Chaos</button>
     <span class="live" id="live" title="MongoDB change stream to Server-Sent Events"><span class="dot"></span><span id="liveText">Connecting</span></span>
   </div>
@@ -142,7 +162,7 @@
 
 <main>
   <div class="col">
-  <section class="glass panel" id="campaignPanel">
+  <section class="glass panel" id="campaignPanel" data-panel>
     <div class="glass-content">
       <div class="panel-head"><div><div class="kicker">Campaigns</div><h2>Incidents</h2></div><span class="count" id="campaignCount"></span></div>
       <div class="scroll" id="campaigns"><div class="empty"><div class="t">No campaigns yet.</div><div class="s">A new one appears here the moment it's created.</div></div></div>
@@ -152,13 +172,13 @@
   </div>
 
   <div class="col">
-    <section class="glass panel" id="detailPanel">
+    <section class="glass panel" id="detailPanel" data-panel>
       <div class="glass-content">
         <div class="scroll" id="detail"><div class="empty big"><div class="t">Pick a campaign.</div><div class="s">Its actions and every state they reached show up here.</div></div></div>
       </div>
     </section>
 
-    <section class="glass panel" id="comparePanel">
+    <section class="glass panel" id="comparePanel" data-panel>
       <div class="glass-content">
         <div class="panel-head"><div><div class="kicker">Same crash, two runs</div><h2>Naive retry vs. the ledger</h2></div>
           <span class="spacer"></span><button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></div>
@@ -170,7 +190,7 @@
     </section>
   </div>
 
-  <section class="glass panel" id="feedPanel">
+  <section class="glass panel" id="feedPanel" data-panel>
     <div class="glass-content">
       <div class="panel-head"><div><div class="kicker">Change stream</div><h2>Live changes</h2></div><span class="count" id="feedCount">0 events</span></div>
       <div class="scroll" id="feed"><div class="empty"><div class="t">Quiet.</div><div class="s">Every write to campaigns and actions lands here.</div></div></div>
@@ -179,6 +199,7 @@
 </main>
 
 <script src="/static/glass.js"></script>
+<script src="/static/layout.js"></script>
 <script>
 const STATES = ["intended", "sent", "receipt", "verified", "unknown", "failed"];
 const TERMINAL = new Set(["verified", "failed"]);
@@ -490,6 +511,17 @@ document.addEventListener("click", (ev) => {
   if (!$("chaosPanel").hidden && !$("chaosPanel").contains(ev.target)) setChaosOpen(false);
 });
 document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("chaosPanel").hidden) { setChaosOpen(false); $("chaosToggle").focus(); } });
+// ---- layout ------------------------------------------------------------------
+const DEFAULT_LAYOUT = { cols: [
+  { f: 3, panels: [{ id: "campaignPanel", h: 1 }] },
+  { f: 7.5, panels: [{ id: "detailPanel", h: 2 }, { id: "comparePanel", h: 1 }] },
+  { f: 3.2, panels: [{ id: "feedPanel", h: 1 }] },
+] };
+document.addEventListener("layoutchange", () => { $("resetLayout").hidden = !SutureLayout.customized(); });
+$("resetLayout").addEventListener("click", () => SutureLayout.reset());
+SutureLayout.init(document.querySelector("main"), DEFAULT_LAYOUT);
+$("resetLayout").hidden = !SutureLayout.customized();
+
 pollChaos();
 setInterval(pollChaos, 1500);
 connect();
