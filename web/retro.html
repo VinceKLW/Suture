@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retro · suture</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/suture.css">
+<!-- Owner: slice D. Vanilla HTML + fetch, no build step. Served at /retro/<campaign_id>. Design: DESIGN.md.
+     Facts come from the ledger (api/retro.py:build_facts). Analysis and chat come from the model and are labelled as such. -->
+<style>
+  html.glass-liquid, html.glass-liquid body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); gap: 16px; padding: 16px; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  html.glass-liquid #left { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; padding-right: 2px; }
+  html.glass-liquid #chatPanel { min-height: 0; height: 100%; }
+  /* Lite (page scrolls): keep the chat in view beside the long retro. */
+  html.glass-lite #chatPanel { position: sticky; top: 16px; align-self: start; height: calc(100vh - 104px); }  /* 104 = topbar + gaps, so the composer starts in view */
+  @media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } html.glass-lite #chatPanel, #chatPanel { position: static; height: 80vh; } }
+  @media (max-width: 760px) { main { padding: 12px; } .topbar { margin: 12px 12px 0; } .topbar .tagline, #cid { display: none; } }
+
+  .src { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fog); }
+  .src i { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--fog)); }
+  .src.ledger { --c: var(--state-verified); } .src.model { --c: var(--dusk); }
+
+  #summary > .glass-content { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  #summary .top { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 24px; }
+  #summary .verdict { flex: 1 1 360px; }
+  #summary .verdict .big { font-size: 28px; line-height: 1.2; letter-spacing: -.01em; }
+  #summary .verdict .why { font-size: 15px; margin-top: 8px; color: var(--sage); max-width: 72ch; }
+  #summary .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .sev { --c: var(--state-receipt); font: 500 12px var(--font-mono); color: var(--c); border: 1px solid var(--c); border-radius: var(--r-sm); padding: 1px 7px; }
+  .sev.SEV1 { --c: var(--state-failed); } .sev.SEV2 { --c: var(--amber); } .sev.SEV4 { --c: var(--state-verified); }
+  .note { font-size: 13px; color: var(--sage); border-left: 2px solid var(--c, var(--dusk)); padding: 4px 0 4px 12px; }
+  .note.warn { --c: var(--amber); } .note.bad { --c: var(--state-failed); }
+  .spinner { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--fog); border-top-color: var(--amber); animation: spin .9s linear infinite; vertical-align: -1px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .sect { padding: 14px 20px 18px; border-bottom: 1px solid var(--hairline); }
+  .sect:last-child { border-bottom: 0; }
+  .sect h3 { margin: 0 0 10px; font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); }
+  .claims { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .claims li { padding-left: 14px; position: relative; }
+  .claims li::before { content: ""; position: absolute; left: 0; top: 10px; width: 6px; height: 1px; background: var(--fog); }
+  .claims li.unsup { color: var(--sage); }
+  .refs { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: 1px; }
+  .ref { font: 11px var(--font-mono); color: var(--sage); text-decoration: none; border: 1px solid var(--hairline-strong); border-radius: var(--r-sm); padding: 0 5px; line-height: 17px; }
+  a.ref:hover { color: var(--ink); border-color: var(--amber); }
+  .rc { font-size: 17px; line-height: 1.45; }
+  .conf { font-size: 12px; color: var(--fog); margin-left: 6px; }
+
+  table.items { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.items th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--fog); padding: 0 10px 8px 0; }
+  table.items td { padding: 10px 10px 10px 0; border-top: 1px solid var(--hairline); vertical-align: top; }
+  table.items td.p { white-space: nowrap; font: 500 12.5px var(--font-mono); }
+  table.items td.p.P0 { color: var(--state-failed); } table.items td.p.P1 { color: var(--amber); } table.items td.p.P2 { color: var(--sage); }
+  table.items .t { font-weight: 500; } table.items .d { color: var(--sage); font-size: 13px; margin-top: 2px; }
+  table.items td.k, table.items td.o { color: var(--sage); font-size: 13px; }
+  @media (max-width: 760px) { table.items td.k, table.items th.k, table.items td.o, table.items th.o { display: none; } }
+  .cols2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .cols2 > .sect + .sect { border-left: 1px solid var(--hairline); }
+  @media (max-width: 900px) { .cols2 { grid-template-columns: minmax(0, 1fr); } .cols2 > .sect + .sect { border-left: 0; } }
+
+  .anoms { display: flex; flex-direction: column; gap: 8px; }
+  .anom { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; font-size: 13px; }
+  .anom .kind { --c: var(--dusk); color: var(--c); font: 12px var(--font-mono); }
+  .anom .kind.failed, .anom .kind.broken_history { --c: var(--state-failed); }
+  .anom .kind.unknown, .anom .kind.adapted { --c: var(--state-unknown); }
+  .anom .kind.still_open { --c: var(--amber); }
+  .anom .what b { font-weight: 500; } .anom .what span { color: var(--sage); }
+  table.tl { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  table.tl col.c1 { width: 104px; } table.tl col.c2 { width: 46%; }
+  table.tl td { padding: 4px 8px 4px 0; border-top: 1px solid var(--hairline); vertical-align: top; overflow-wrap: anywhere; }
+  table.tl tr:first-child td { border-top: 0; }
+  table.tl td.ts { color: var(--fog); white-space: nowrap; }
+  table.tl td.dt { color: var(--sage); }
+  table.tl tr.hot td.w { color: var(--amber); }
+
+  /* chat */
+  #chatPanel > .glass-content { display: flex; flex-direction: column; min-height: 0; }
+  #msgs { padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { font-size: 14px; line-height: 1.55; max-width: 100%; }
+  .msg.user { align-self: flex-end; background: var(--moss); border: 1px solid var(--hairline-strong); border-radius: var(--r-md); padding: 8px 12px; max-width: 88%; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.assistant { color: var(--ink); overflow-wrap: anywhere; }
+  .msg.assistant p { margin: 0 0 8px; } .msg.assistant p:last-child { margin-bottom: 0; }
+  .msg.assistant ul, .msg.assistant ol { margin: 0 0 8px; padding-left: 20px; }
+  .msg.assistant li { margin: 2px 0; }
+  .msg.assistant code { font: 12.5px var(--font-mono); background: rgba(6,8,7,.55); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 4px; }
+  .msg.assistant pre { margin: 0 0 8px; padding: 8px 10px; background: rgba(6,8,7,.55); border: 1px solid var(--hairline); border-radius: var(--r-sm); overflow-x: auto; font: 12.5px var(--font-mono); white-space: pre-wrap; }
+  .msg.assistant pre code { border: 0; background: none; padding: 0; }
+  .msg.assistant .h { font-weight: 500; margin: 10px 0 4px; }
+  .msg.assistant table { border-collapse: collapse; font-size: 12.5px; margin: 0 0 8px; display: block; overflow-x: auto; }
+  .msg.assistant td, .msg.assistant th { border: 1px solid var(--hairline-strong); padding: 3px 7px; text-align: left; vertical-align: top; }
+  .msg.assistant th { font-weight: 500; }
+  .msg .who { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fog); margin-bottom: 4px; }
+  .msg.err { color: var(--state-failed); font-size: 13px; }
+  .msg .cursor::after { content: "▍"; color: var(--amber); animation: breathe 1s infinite; }
+  .suggest { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 12px; }
+  .chip { font: inherit; font-size: 12.5px; color: var(--sage); background: none; border: 1px solid var(--hairline-strong); border-radius: var(--r-pill); padding: 4px 10px; cursor: pointer; text-align: left; }
+  .chip:hover { color: var(--ink); border-color: var(--amber); }
+  .composer { display: flex; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--hairline); align-items: flex-end; }
+  .composer textarea { flex: 1; resize: none; font: inherit; font-size: 14px; color: var(--ink); background: rgba(6,8,7,.45); border: 1px solid var(--hairline-strong);
+    border-radius: var(--r-sm); padding: 8px 10px; min-height: 40px; max-height: 160px; line-height: 1.45; }
+  .composer textarea:focus { outline: none; border-color: var(--dusk); }
+  .composer .btn { height: 40px; }
+  .chat-empty { color: var(--sage); font-size: 13.5px; }
+  .chat-empty b { color: var(--ink); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="glass topbar">
+  <div class="glass-content">
+    <a class="brand" href="/"><img src="/static/logo.svg" alt=""><span class="word">suture</span></a>
+    <span class="crumb">/ retro</span>
+    <span class="tagline" id="title"></span>
+    <span class="spacer"></span>
+    <span class="mono" id="cid" style="color: var(--fog)"></span>
+    <a class="link" id="mdLink" href="#">Markdown</a>
+    <a class="link" id="proofLink" href="#">Proof view</a>
+    <a class="link" href="/">Dashboard</a>
+  </div>
+</header>
+
+<main>
+  <div class="col" id="left">
+    <section class="glass panel" id="summary">
+      <div class="glass-content">
+        <div class="top">
+          <div id="verdict" class="verdict wait"><span class="big">Loading.</span></div>
+          <div class="actions"><span id="sev"></span><button class="btn" id="genBtn" hidden>Write retro</button></div>
+        </div>
+        <div class="stats" id="stats"></div>
+        <div id="status"></div>
+      </div>
+    </section>
+
+    <section class="glass panel" id="analysisPanel" hidden>
+      <div class="glass-content">
+        <div class="panel-head"><div><div class="kicker">Retrospective</div><h2>What we learned</h2></div>
+          <span class="count"><span class="src model"><i></i>written by the model, citations checked</span></span></div>
+        <div id="analysis"></div>
+      </div>
+    </section>
+
+    <section class="glass panel" id="factsPanel">
+      <div class="glass-content">
+        <div class="panel-head"><div><div class="kicker">What happened</div><h2>From the ledger</h2></div>
+          <span class="count"><span class="src ledger"><i></i>computed by code, not the model</span></span></div>
+        <div id="facts"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="glass panel" id="chatPanel">
+    <div class="glass-content">
+      <div class="panel-head"><div><div class="kicker">Incident chat</div><h2>Ask about this incident</h2></div>
+        <span class="count"><button class="btn-ghost" id="clearChat" hidden>Clear</button></span></div>
+      <div class="scroll" id="msgScroll"><div id="msgs"></div></div>
+      <div class="suggest" id="suggest"></div>
+      <form class="composer" id="composer">
+        <textarea id="q" rows="1" placeholder="Ask about this incident…" maxlength="4000"></textarea>
+        <button class="btn" id="send" type="submit">Ask</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<script src="/static/glass.js"></script>
+<script>
+const campaignId = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const stamp = (iso) => { if (!iso) return ""; const d = new Date(iso); return d.toLocaleTimeString([], { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0"); };
+const secs = (ms) => (ms === null || ms === undefined ? "–" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)}s`);
+const short = (id) => (id && id.length === 24 ? "…" + id.slice(-6) : id);
+const SUGGESTIONS = [
+  "Walk me through what happened, step by step.",
+  "Where did the recovery struggle, and why?",
+  "What would a naive retry have done here?",
+  "Which action item should we do first?",
+  "Draft a short status update for leadership.",
+];
+
+let state = { facts: null, retro: null, generating: false, autoTried: false };
+const labels = () => new Map((state.facts?.steps || []).map((s) => [s.action_id, s.label]));
+
+// ---------------------------------------------------------------- retro
+function refChips(evidence) {
+  const names = labels();
+  const chips = (evidence || []).map((e) => names.has(e)
+    ? `<a class="ref" href="/proof/${encodeURIComponent(campaignId)}#a-${esc(e)}" title="${esc(names.get(e))} · ${esc(e)}">${esc(names.get(e))} ${esc(short(e))}</a>`
+    : `<span class="ref">${esc(e)}</span>`).join("");
+  return chips ? `<span class="refs">${chips}</span>` : "";
+}
+const unsupTag = (c) => (c.supported === false ? ` <span class="tag bad" title="None of its citations match the ledger">unsupported</span>` : "");
+const claimList = (items) => items && items.length
+  ? `<ul class="claims">${items.map((c) => `<li class="${c.supported === false ? "unsup" : ""}">${esc(c.statement)}${refChips(c.evidence)}${unsupTag(c)}</li>`).join("")}</ul>`
+  : `<div class="chat-empty">None.</div>`;
+
+function renderSummary() {
+  const f = state.facts, r = state.retro, a = r && r.status === "ready" ? r.analysis : null;
+  const c = f.campaign, i = f.impact, t = f.timing;
+  const trig = f.trigger || {};
+  document.title = `Retro · ${a?.title || trig.summary || c.playbook} · suture`;
+  $("title").textContent = `${c.playbook || c.kind} · ${c.state}`;
+  $("cid").textContent = `campaign ${c.campaign_id}`;
+  let klass = c.state === "succeeded" && i.all_verified ? "ok" : c.state === "running" ? "wait" : i.failed || c.state === "failed" ? "bad" : "wait";
+  const big = a?.title || trig.summary || `${c.playbook} campaign`;
+  const why = a?.summary || (c.state === "running"
+    ? "The campaign is still running. The facts below follow the ledger live; the retro can be written once it finishes."
+    : `${i.verified} of ${i.actions} actions verified${i.recovered ? `, ${plural(i.recovered, "action")} recovered after a crash` : ""}${i.adapted ? `, ${i.adapted} adapted` : ""}.`);
+  $("verdict").className = `verdict ${klass}`;
+  $("verdict").innerHTML = `<span class="big">${esc(big)}</span><span class="why">${esc(why)}</span>`;
+  $("sev").innerHTML = a?.severity ? `<span class="sev ${esc(a.severity)}" title="${esc(a.severity_rationale || "")}">${esc(a.severity)}</span>` : "";
+  const cells = [[secs(t.time_to_resolve_ms), "to resolve"], [`${i.verified}/${i.actions}`, "verified"], [i.recovered, "recovered"], [i.adapted, "adapted"], [i.failed, "failed"]];
+  $("stats").innerHTML = cells.map(([n, l]) => `<div class="stat"><b>${esc(n)}</b><span>${l}</span></div>`).join("");
+
+  const btn = $("genBtn");
+  btn.hidden = c.state === "running";
+  btn.disabled = state.generating;
+  btn.textContent = a ? "Rewrite retro" : "Write retro";
+  let status = "";
+  if (state.generating) status = `<div class="note"><span class="spinner"></span>The model is reading the ledger and writing the retro. This takes about half a minute.</div>`;
+  else if (r?.status === "failed") status = `<div class="note bad">The retro could not be written: ${esc(String(r.error || "unknown error").replace(/[.\s]+$/, ""))}. The facts below are still complete.</div>`;
+  else if (r?.status === "generating") status = `<div class="note"><span class="spinner"></span>A retro is being written for this campaign.</div>`;
+  else if (a) {
+    const n = (a.unsupported || []).length;
+    status = `<div class="note">Analysis by <span class="mono">${esc(r.model || "")}</span> · ${esc(stamp(r.generated_at))}`
+      + `${n ? ` · <span style="color:var(--state-failed)">${plural(n, "claim")} without a valid citation</span>` : " · every claim cites the ledger"}</div>`;
+    if (r.stale) status += `<div class="note warn">The ledger has changed since this retro was written. Rewrite it to include the new actions.</div>`;
+  } else if (c.state !== "running") status = `<div class="note">No retro yet. Write one to get a root cause, what went well and poorly, and action items.</div>`;
+  $("status").innerHTML = status;
+}
+
+function renderAnalysis() {
+  const r = state.retro, a = r && r.status === "ready" ? r.analysis : null;
+  $("analysisPanel").hidden = !a;
+  if (!a) return;
+  const rc = a.root_cause || {};
+  const items = (a.action_items || []).slice().sort((x, y) => String(x.priority).localeCompare(String(y.priority)));
+  $("analysis").innerHTML = `
+    <div class="sect"><h3>Root cause</h3>
+      <div class="rc">${esc(rc.statement)}<span class="conf">${esc(rc.confidence || "")}</span>${refChips(rc.evidence)}${unsupTag(rc)}</div></div>
+    <div class="sect"><h3>Contributing factors</h3>${claimList(a.contributing_factors)}</div>
+    <div class="cols2">
+      <div class="sect"><h3>What went well</h3>${claimList(a.what_went_well)}</div>
+      <div class="sect"><h3>What went poorly</h3>${claimList(a.what_went_poorly)}</div>
+    </div>
+    ${a.where_we_got_lucky?.length ? `<div class="sect"><h3>Where we got lucky</h3>${claimList(a.where_we_got_lucky)}</div>` : ""}
+    <div class="sect"><h3>Action items</h3>
+      ${items.length ? `<table class="items"><thead><tr><th>Pri</th><th>Action</th><th class="k">Kind</th><th class="o">Owner</th></tr></thead><tbody>
+        ${items.map((x) => `<tr><td class="p ${esc(x.priority)}">${esc(x.priority)}</td>
+          <td><div class="t">${esc(x.title)}${unsupTag(x)}</div><div class="d">${esc(x.detail)}${refChips(x.evidence)}</div></td>
+          <td class="k">${esc(x.kind)}</td><td class="o">${esc(x.owner_hint)}</td></tr>`).join("")}</tbody></table>` : `<div class="chat-empty">None.</div>`}
+    </div>
+    <div class="cols2">
+      <div class="sect"><h3>Lessons</h3>${a.lessons?.length ? `<ul class="claims">${a.lessons.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : `<div class="chat-empty">None.</div>`}</div>
+      <div class="sect"><h3>Open questions</h3>${a.open_questions?.length ? `<ul class="claims">${a.open_questions.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : `<div class="chat-empty">None.</div>`}</div>
+    </div>`;
+}
+
+function renderFacts() {
+  const f = state.facts, t = f.timing;
+  const trig = f.trigger || {};
+  const trigRows = Object.entries(trig).filter(([k]) => k !== "summary").map(([k, v]) => `<tr><td class="ts">${esc(k)}</td><td colspan="2" class="mono">${esc(typeof v === "object" ? JSON.stringify(v) : v)}</td></tr>`).join("");
+  const anoms = f.anomalies.length
+    ? `<div class="anoms">${f.anomalies.map((x) => `<div class="anom"><span class="kind ${esc(x.kind)}">${esc(x.kind.replace(/_/g, " "))}</span>
+        <span class="what"><b>${esc(x.label)}</b> <span>${esc(x.detail)}</span>${refChips([x.action_id])}</span></div>`).join("")}</div>`
+    : `<div class="chat-empty">Nothing unusual: every action went straight from intended to verified.</div>`;
+  const hot = /lookup|recover|reconcil|unknown|failed|adaptation/i;
+  const rows = f.timeline.map((e) => `<tr class="${hot.test(e.what + " " + (e.detail || "")) ? "hot" : ""}">
+      <td class="ts mono">${esc(stamp(e.ts))}</td><td class="w">${esc(e.what)}</td><td class="dt">${esc(e.detail || "")}</td></tr>`).join("");
+  $("facts").innerHTML = `
+    <div class="sect"><h3>Trigger</h3>
+      <div style="margin-bottom:6px">${esc(trig.summary || "No summary on the trigger.")}${refChips(["trigger"])}</div>
+      ${trigRows ? `<table class="tl"><colgroup><col class="c1"><col><col></colgroup>${trigRows}</table>` : ""}</div>
+    <div class="sect"><h3>Timing</h3><div class="stats small">
+      ${[[secs(t.time_to_first_action_ms), "alert to first action"], [secs(t.active_recovery_ms), "active recovery"], [secs(t.time_to_resolve_ms), "alert to resolved"]]
+        .map(([n, l]) => `<div class="stat"><b>${esc(n)}</b><span>${l}</span></div>`).join("")}</div></div>
+    <div class="sect"><h3>What was unusual</h3>${anoms}</div>
+    <div class="sect"><h3>Timeline · ${plural(f.timeline.length, "event")}</h3>
+      <table class="tl"><colgroup><col class="c1"><col class="c2"><col></colgroup>${rows}</table></div>`;
+}
+
+function render() { if (!state.facts) return; renderSummary(); renderAnalysis(); renderFacts(); }
+
+async function load() {
+  const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/retro`);
+  if (!res.ok) {
+    $("verdict").className = "verdict bad";
+    $("verdict").innerHTML = `<span class="big">Campaign not found.</span><span class="why mono">${esc(campaignId)}</span>`;
+    return false;
+  }
+  const data = await res.json();
+  state.facts = data.facts; state.retro = data.retro;
+  render();
+  // First visit to a finished incident: write the retro once (it is stored, so later visits are free).
+  if (!state.autoTried && !state.retro && state.facts.campaign.state !== "running") { state.autoTried = true; generate(false); }
+  return true;
+}
+
+async function generate(force) {
+  if (state.generating) return;
+  state.generating = true; render();
+  try {
+    const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/retro?force=${force ? 1 : 0}`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) { state.facts = data.facts; state.retro = data.retro; }
+    else state.retro = { status: "failed", error: data.detail || `HTTP ${res.status}` };
+  } catch (e) { state.retro = { status: "failed", error: String(e) }; }
+  state.generating = false; render();
+}
+$("genBtn").addEventListener("click", () => generate(Boolean(state.retro && state.retro.status === "ready")));
+
+// ---------------------------------------------------------------- chat
+// Tiny markdown for model answers. Everything is escaped first, so no HTML from the model ever runs.
+function inline(s) {
+  return s.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>");
+}
+function md(text) {
+  const lines = esc(text).split("\n"), out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^```/.test(l)) { const buf = []; i++; while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]); i++; out.push(`<pre><code>${buf.join("\n")}</code></pre>`); continue; }
+    if (/^\s*\|.*\|\s*$/.test(l)) {
+      const rows = []; while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(lines[i++]);
+      const cells = (r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => inline(c.trim()));
+      const body = rows.filter((r) => !/^\s*\|?\s*:?-{2,}/.test(r));
+      out.push(`<table>${body.map((r, k) => `<tr>${cells(r).map((c) => (k === 0 && rows.length > 1 && /-{2,}/.test(rows[1]) ? `<th>${c}</th>` : `<td>${c}</td>`)).join("")}</tr>`).join("")}</table>`);
+      continue;
+    }
+    if (/^\s*[-*] /.test(l)) { const buf = []; while (i < lines.length && /^\s*[-*] /.test(lines[i])) buf.push(`<li>${inline(lines[i++].replace(/^\s*[-*] /, ""))}</li>`); out.push(`<ul>${buf.join("")}</ul>`); continue; }
+    if (/^\s*\d+[.)] /.test(l)) { const buf = []; while (i < lines.length && /^\s*\d+[.)] /.test(lines[i])) buf.push(`<li>${inline(lines[i++].replace(/^\s*\d+[.)] /, ""))}</li>`); out.push(`<ol>${buf.join("")}</ol>`); continue; }
+    if (/^#{1,4} /.test(l)) { out.push(`<div class="h">${inline(l.replace(/^#{1,4} /, ""))}</div>`); i++; continue; }
+    if (!l.trim()) { i++; continue; }
+    const buf = []; while (i < lines.length && lines[i].trim() && !/^(```|\s*[-*] |\s*\d+[.)] |#{1,4} |\s*\|)/.test(lines[i])) buf.push(inline(lines[i++]));
+    out.push(`<p>${buf.join("<br>")}</p>`);
+  }
+  return out.join("");
+}
+
+let messages = [], asking = false;
+function bubble(m) {
+  if (m.role === "user") return `<div class="msg user">${esc(m.content)}</div>`;
+  if (m.role === "error") return `<div class="msg err">${esc(m.content)}</div>`;
+  return `<div class="msg assistant"><div class="who">suture analyst</div><div class="${m.live ? "cursor" : ""}">${md(m.content)}</div></div>`;
+}
+function renderChat() {
+  const box = $("msgs");
+  box.innerHTML = messages.length ? messages.map(bubble).join("")
+    : `<div class="chat-empty"><b>Ask anything about this incident.</b> The analyst has the whole ledger for it (every step, transition, retry and receipt), the playbook that ran, and the retro once it is written. It answers from that record and says when the record can't answer.</div>`;
+  $("suggest").innerHTML = messages.length ? "" : SUGGESTIONS.map((s) => `<button class="chip" type="button">${esc(s)}</button>`).join("");
+  $("clearChat").hidden = !messages.length || asking;
+  $("send").disabled = asking;
+  const sc = $("msgScroll"); sc.scrollTop = sc.scrollHeight;
+}
+$("suggest").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (b) ask(b.textContent); });
+
+async function loadChat() {
+  const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/chat`);
+  if (res.ok) messages = (await res.json()).messages.map((m) => ({ role: m.role, content: m.content }));
+  renderChat();
+}
+
+async function ask(question) {
+  question = question.trim();
+  if (!question || asking) return;
+  asking = true;
+  messages.push({ role: "user", content: question });
+  const answer = { role: "assistant", content: "", live: true };
+  messages.push(answer); renderChat();
+  try {
+    const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/chat`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: question }),
+    });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(typeof d.detail === "string" ? d.detail : `HTTP ${res.status}`); }
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let cut;
+      while ((cut = buf.indexOf("\n\n")) >= 0) {
+        const frame = buf.slice(0, cut); buf = buf.slice(cut + 2);
+        const ev = (frame.match(/^event: (.*)$/m) || [])[1], data = JSON.parse((frame.match(/^data: (.*)$/m) || [, "{}"])[1]);
+        if (ev === "delta") { answer.content += data.text; renderChat(); }
+        else if (ev === "error") messages.push({ role: "error", content: data.detail });
+      }
+    }
+  } catch (e) { messages.push({ role: "error", content: String(e.message || e) }); }
+  answer.live = false;
+  if (!answer.content) messages.splice(messages.indexOf(answer), 1);
+  asking = false; renderChat();
+}
+
+const q = $("q");
+q.addEventListener("input", () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 160) + "px"; });
+q.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("composer").requestSubmit(); } });
+$("composer").addEventListener("submit", (e) => { e.preventDefault(); const v = q.value; q.value = ""; q.style.height = "auto"; ask(v); });
+$("clearChat").addEventListener("click", async () => {
+  if (!confirm("Clear this incident's chat for everyone?")) return;
+  await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/chat`, { method: "DELETE" });
+  messages = []; renderChat();
+});
+
+// ---------------------------------------------------------------- wiring
+$("proofLink").href = `/proof/${encodeURIComponent(campaignId)}`;
+$("mdLink").href = `/api/campaigns/${encodeURIComponent(campaignId)}/retro.md`;
+// Facts follow the ledger live (a running campaign fills in as it goes).
+let pending = null;
+const source = new EventSource("/api/stream");
+source.addEventListener("change", (m) => {
+  const e = JSON.parse(m.data);
+  const mine = e.id === campaignId || (e.doc && e.doc.campaign_id === campaignId);
+  if (mine && !pending && !state.generating) pending = setTimeout(() => { pending = null; load(); }, 300);
+});
+load().then((ok) => { if (ok) loadChat(); });
+</script>
+</body>
+</html>

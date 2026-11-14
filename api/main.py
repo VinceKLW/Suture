@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import chaos, dashboard, proof
+from api import chaos, dashboard, proof, retro
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
@@ -22,6 +22,7 @@ app = FastAPI(title="suture", lifespan=lifespan)
 app.include_router(dashboard.router)
 app.include_router(proof.router)
 app.include_router(chaos.router)
+app.include_router(retro.router)
 app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")  # design system, glass, photo
 
 

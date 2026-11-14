@@ -207,7 +207,8 @@ async def run_demo(
         f" · recovered without re-sending: {', '.join(report['recovered']) or 'none'}"
         f" · old key dead: {report['old_key_dead']}"
         + (f" · email read back via {report['email_backend']}" if report["email_backend"] else ""))
-    out(f"\n[6] Proof view: http://localhost:8000/proof/{cid}\n")
+    out(f"\n[6] Proof view: http://localhost:8000/proof/{cid}")
+    out(f"    Retro + incident chat: http://localhost:8000/retro/{cid}\n")
     report["ok"] = bool(
         code == 0 and report["campaign_state"] == "succeeded" and report["all_verified"]
         and report["duplicates"] == 0 and report["old_key_dead"]
