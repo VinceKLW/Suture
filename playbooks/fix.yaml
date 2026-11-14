@@ -49,6 +49,13 @@ steps:
       strategy: model_mapping
       canonical_success: success
 
+  - id: merge_pr
+    adapter: github_pr              # only runs if verify_pr went verified (CI green).
+    operation: merge_pr             # squash-merges the recovery PR in real mode;
+    depends_on: [verify_pr]          # a no-op flag flip in the simulated store.
+    inputs:
+      repo: "${campaign.trigger.repo}"
+
   - id: promote
     adapter: experiences            # pseudo-adapter: triggers promote() in the runner
     operation: promote_atomic

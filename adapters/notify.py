@@ -189,13 +189,18 @@ class NotifyEmailAdapter:
         to = params.get("to")
         recipients = [to] if isinstance(to, str) else list(to or [])
         recipients = [r for r in (_clean(r) for r in recipients) if r]
-        return {
+        payload = {
             "operation": action.get("operation") or "send_email",
             "to": recipients or [os.environ.get("NOTIFY_DEFAULT_TO", DEFAULT_TO)],
             "from": _clean(params.get("from")) or os.environ.get("NOTIFY_FROM", DEFAULT_FROM),
             "subject": (_clean(params.get("subject")) or "").rstrip(" :-") or "Incident recovery update",
             "body": _clean(params.get("body")) or "The recovery campaign finished. Every step was independently verified.",
         }
+        # When the step passed campaign_id, the richer compose runs at execute time.
+        cid = _clean(params.get("campaign_id")) or _clean(str(action.get("campaign_id") or ""))
+        if cid:
+            payload["campaign_id"] = cid
+        return payload
 
     def _build(self, action_id: str, payload: dict) -> EmailMessage:
         to = payload.get("to") or [DEFAULT_TO]
@@ -207,6 +212,10 @@ class NotifyEmailAdapter:
         msg["Message-ID"] = make_msgid(idstring=action_id, domain="recovery.local")
         msg[ACTION_ID_HEADER] = action_id  # the idempotency stamp (PRD §1.2)
         msg.set_content(payload.get("body") or "")
+        # When the richer body is available, attach it as the preferred alternative.
+        html_body = payload.get("html")
+        if html_body:
+            msg.add_alternative(html_body, subtype="html")
         return msg
 
     def _ref(self, message: dict) -> dict:
@@ -227,6 +236,17 @@ class NotifyEmailAdapter:
             existing = []
         if existing:
             return {"external_ref": {**self._ref(existing[0]), "deduplicated": True}, "receipt": True}
+
+        # Enrich with the proof-view + retro email when the step knows the campaign.
+        cid = payload.get("campaign_id")
+        if cid:
+            try:
+                from adapters.notify_html import compose
+                rich = await compose(cid, dashboard_base=os.environ.get("DASHBOARD_BASE_URL", "http://127.0.0.1:8000"))
+                if rich:
+                    payload = {**payload, "subject": rich["subject"], "body": rich["text"], "html": rich["html"]}
+            except Exception:  # retro compose is best-effort; plain body is the fallback
+                pass
 
         msg = self._build(action_id, payload)
         try:

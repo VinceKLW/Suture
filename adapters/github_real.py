@@ -135,6 +135,30 @@ async def open_pr(repo: str, action_id: str, title: str, body: str, edits: list[
         return pr_ref(repo, r.json())
 
 
+async def merge_pr(repo: str, action_id: str) -> dict:
+    """Merge the recovery PR for this action. Safe to call again: a merged PR
+    returns the existing merged state instead of erroring. Returns the merge receipt."""
+    async with _client() as gh:
+        pr = await find_pr(gh, repo, action_id)
+        if pr is None:
+            raise RuntimeError(f"no PR found for action {action_id} in {repo}")
+        if pr.get("merged") or pr.get("merged_at"):
+            return {"repo": repo, "pr_number": pr["number"], "merged": True, "sha": pr["merge_commit_sha"],
+                    "url": pr["html_url"], "already": True}
+        # squash keeps main's history clean for repeated demo runs
+        r = await gh.put(f"/repos/{repo}/pulls/{pr['number']}/merge",
+                         json={"merge_method": "squash",
+                               "commit_title": pr["title"],
+                               "commit_message": f"Recovery merge\n\n{marker(action_id)}"})
+        if r.status_code == 409:
+            # not mergeable (CI red, conflicts, etc.) - surface the reason, don't claim success
+            raise RuntimeError(f"PR #{pr['number']} not mergeable: {r.json().get('message')}")
+        r.raise_for_status()
+        data = r.json()
+        return {"repo": repo, "pr_number": pr["number"], "merged": bool(data.get("merged")),
+                "sha": data.get("sha"), "url": pr["html_url"], "already": False}
+
+
 async def lookup(action_id: str) -> dict | None:
     """Which real repo, if any, already has this action's PR."""
     async with _client() as gh:
