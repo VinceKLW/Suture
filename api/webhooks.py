@@ -97,6 +97,9 @@ async def _failure_text(repo: str, sha: str, fallback: str) -> str:
 
 def _run_in_process(campaign_id) -> None:
     global _runs
+    from api import chaos
+    if chaos.adopt(campaign_id):  # under the chaos panel, so its Kill / Rename buttons work on this incident
+        return
     from engine.playbook import run_campaign
     from engine.worker import DEFAULT_SETUP, run_setup
 

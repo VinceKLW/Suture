@@ -454,8 +454,10 @@ function renderChaos() {
   $("chaosToggle").classList.toggle("running", Boolean(on));
   $("chaosState").innerHTML = on
     ? `Running <b>incident</b> as <span class="mono">${esc(chaos.worker)}</span>${chaos.kills ? ` · ${plural(chaos.kills, "worker")} killed` : ""}`
-    : "No campaign running.";
-  $("chaosStart").hidden = on;
+    : chaos.pending
+      ? `CI broken on <span class="mono">${esc(chaos.pending.repo)}</span> (<a href="${esc(chaos.pending.url)}" target="_blank" rel="noopener">${esc(String(chaos.pending.sha).slice(0, 7))}</a>). Waiting for GitHub's webhook…`
+      : "No campaign running.";
+  $("chaosStart").hidden = on || Boolean(chaos.pending);
   document.querySelectorAll(".chaos-btn").forEach((b) => { b.disabled = !on || cooling.has(b.dataset.chaos); });
   if (chaos.last) {
     $("chaosLast").innerHTML = `Last trigger: <b>${esc(CHAOS_LABEL[chaos.last.triggered] || chaos.last.triggered)}</b> at <span class="num">${esc(clock(chaos.last.at).slice(0, 8))}</span>`
@@ -495,6 +497,7 @@ $("chaosStart").addEventListener("click", async () => {
     const res = await fetch("/api/chaos/start", { method: "POST" });
     const data = await res.json().catch(() => ({}));
     if (res.ok) { chaos.last = null; $("chaosLast").textContent = "Last trigger: none yet."; await pollChaos(); }
+    else $("chaosLast").textContent = `Start refused (${data.error || res.status}).`;
   } finally { $("chaosStart").disabled = false; }
 });
 document.querySelector(".chaos-buttons").addEventListener("click", (ev) => {

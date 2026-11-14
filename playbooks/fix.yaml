@@ -55,6 +55,8 @@ steps:
     depends_on: [verify_pr]          # a no-op flag flip in the simulated store.
     inputs:
       repo: "${campaign.trigger.repo}"
+      pr_number: "${open_pr.result.pr_number}"   # the PR open_pr made (it's stamped with open_pr's action id, not ours)
+      head_sha: "${open_pr.result.head_sha}"
 
   - id: promote
     adapter: experiences            # pseudo-adapter: triggers promote() in the runner

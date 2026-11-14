@@ -135,11 +135,22 @@ async def open_pr(repo: str, action_id: str, title: str, body: str, edits: list[
         return pr_ref(repo, r.json())
 
 
-async def merge_pr(repo: str, action_id: str) -> dict:
-    """Merge the recovery PR for this action. Safe to call again: a merged PR
+async def pr_by_number(gh: httpx.AsyncClient, repo: str, number) -> dict | None:
+    r = await gh.get(f"/repos/{repo}/pulls/{int(number)}")
+    return r.json() if r.status_code == 200 else None
+
+
+async def get_pr_for(repo: str, action_id: str, pr_number=None) -> dict | None:
+    """The PR by number when the step knows it (merge_pr gets open_pr's), else by this action's marker."""
+    async with _client() as gh:
+        return await pr_by_number(gh, repo, pr_number) if pr_number else await find_pr(gh, repo, action_id)
+
+
+async def merge_pr(repo: str, action_id: str, pr_number=None) -> dict:
+    """Merge the recovery PR (pr_number = the one open_pr made). Safe to call again: a merged PR
     returns the existing merged state instead of erroring. Returns the merge receipt."""
     async with _client() as gh:
-        pr = await find_pr(gh, repo, action_id)
+        pr = await pr_by_number(gh, repo, pr_number) if pr_number else await find_pr(gh, repo, action_id)
         if pr is None:
             raise RuntimeError(f"no PR found for action {action_id} in {repo}")
         if pr.get("merged") or pr.get("merged_at"):

@@ -140,7 +140,7 @@ class GithubPrAdapter:
 
         if op == "merge_pr":
             # Simulated merge: flip the flag on the in-memory PR. Idempotent.
-            existing = _find_pr_by_action(repo, action_id)
+            existing = _locate_pr(repo, action_id, payload)
             if not existing:
                 return {"external_ref": {"repo": repo_name, "merged": False, "reason": "no PR found"}, "receipt": False}
             pr_number, pr = existing
@@ -236,7 +236,7 @@ class GithubPrAdapter:
         if op in ("verify", "check_ci"):
             return {"external_ref": {"repo": repo_name, "head_sha": payload.get("head_sha")}, "receipt": True}
         if op == "merge_pr":
-            ref = await real.merge_pr(repo_name, action_id)
+            ref = await real.merge_pr(repo_name, action_id, payload.get("pr_number"))
             return {"external_ref": ref, "receipt": True}
         raise ValueError(f"Unknown github_pr operation: {op!r}")
 
@@ -251,7 +251,7 @@ class GithubPrAdapter:
 
         if op == "merge_pr":
             # Re-read the PR from GitHub; truth lives there, not in our ledger.
-            pr = await real.get_pr(repo_name, action_id)
+            pr = await real.get_pr_for(repo_name, action_id, payload.get("pr_number"))
             if not pr:
                 return {"outcome": "failed", "observed": {"reason": "no PR on GitHub for this action"}}
             if pr.get("merged") or pr.get("merged_at"):
