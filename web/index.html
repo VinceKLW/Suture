@@ -100,16 +100,18 @@
   .panel:hover > .grip, .grip:focus-visible { opacity: 1; }
   html.layout-on .panel-head, html.layout-on [data-drag-handle] { cursor: grab; }
   html.layout-on .panel-head :is(a, button), html.layout-on [data-drag-handle] :is(a, button) { cursor: pointer; }
-  .dragging-panel { opacity: .4; transition: opacity var(--dur) var(--ease); }
   html.layout-dragging, html.layout-dragging * { cursor: grabbing !important; user-select: none; }
   html.resizing-v, html.resizing-v * { cursor: col-resize !important; user-select: none; }
   html.resizing-h, html.resizing-h * { cursor: row-resize !important; user-select: none; }
-  .drop-hint { position: fixed; z-index: 30; pointer-events: none; border: 1.5px dashed var(--amber); background: var(--amber-soft); border-radius: var(--r-md);
-    transition: left 120ms var(--ease), top 120ms var(--ease), width 120ms var(--ease), height 120ms var(--ease); }
-  .drop-hint::after { content: attr(data-label); position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap;
-    font-size: 12.5px; color: var(--ink); background: var(--moss); border: 1px solid var(--hairline-strong); border-radius: var(--r-pill); padding: 3px 10px; }
-  .drag-ghost { position: fixed; z-index: 31; left: 0; top: 0; pointer-events: none; padding: 5px 12px; font-size: 13px; color: var(--ink);
-    background: var(--moss); border: 1px solid var(--amber); border-radius: var(--r-pill); box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  /* the panel being dragged lifts off the page and follows the pointer */
+  .panel.lifted { position: fixed; z-index: 40; margin: 0; pointer-events: none; will-change: translate, scale;
+    box-shadow: 0 28px 70px rgba(0,0,0,.6), 0 0 0 1px rgba(232,162,82,.45); transition: scale 200ms var(--ease); }
+  .panel.lifted > .grip { opacity: 1; }
+  .panel.lifted > .grip::before { background: var(--amber); }
+  /* the spot it will land in */
+  .drop-slot { min-height: 0; border: 1.5px dashed rgba(232,162,82,.7); background: var(--amber-soft); border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center; }
+  .drop-slot span { font-size: 13px; color: var(--sage); }
 
   /* chaos: a header button opens the panel as a popover, so the incident list keeps the full column */
   .chaos-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--sage);

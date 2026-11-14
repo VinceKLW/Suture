@@ -165,7 +165,9 @@
   addEventListener("resize", () => { applyMode(); for (const st of items.values()) schedule(st); });
   // In lite (scrolling) layouts there is no refracted copy to keep aligned, so scroll is free.
 
-  window.SutureGlass = { scan, applyMode };
+  // place(el): re-align one panel's refracted photo after it moved without resizing (e.g. while dragged).
+  const placeEl = (el) => { const st = items.get(el); if (st) place(st); };
+  window.SutureGlass = { scan, applyMode, place: placeEl };
   applyMode();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scan); else scan();
 })();
