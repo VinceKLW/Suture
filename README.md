@@ -214,6 +214,25 @@ CRASH_AT=sent_before_receipt:github_secrets:update_secret:2 python -m engine.wor
 python -m engine.worker --campaign <id>      # restart: recovers without re-sending
 ```
 
+### Live fix demo: a real PR
+
+suture opens a real pull request on [`JulianCruzet/suture-demo-api`](https://github.com/JulianCruzet/suture-demo-api),
+a sandbox whose CI on `main` is red on purpose (`ERR_REQUIRE_ESM` from node-fetch 3 under `require()`). It recalls the
+verified "pin node-fetch to 2.6.7" fix, commits it on `recovery/<action_id>`, opens the PR, waits for CI to go green
+and only then marks it verified. A crashed worker finds the PR by its branch instead of opening a second one.
+
+Add to `.env`: `GITHUB_TOKEN` (a token with contents + pull request write on the demo repo) and
+`GITHUB_PR_REPOS=JulianCruzet/suture-demo-api`. Only repos listed there ever touch GitHub; everything else stays
+simulated.
+
+```bash
+python -m demo.seed                 # once: puts the node-fetch fix (with its file edit) into memory
+python -m demo.ci_runner --watch    # only if GitHub Actions can't run: posts real red/green "suture-ci" checks
+python -m demo.fix_live             # red CI on main -> fix campaign -> real PR -> CI green -> verified
+```
+
+With `demo.ci_runner`, also set `GITHUB_CI_ONLY=suture-ci` so suture reads that check and ignores Actions.
+
 ---
 
 ## 📁 Project Structure
