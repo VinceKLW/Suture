@@ -18,6 +18,36 @@ from engine.state import transition
 from experiences.embed import embed
 
 
+async def embed_experience(problem_text: str, solution_text: str) -> list[float]:
+    return await embed(f"{problem_text}\n\n{solution_text}", input_type="document")
+
+
+def experience_document(
+    action_id: str | ObjectId,
+    *,
+    problem_text: str,
+    solution_text: str,
+    vector: list[float],
+    metadata: dict[str, Any] | None = None,
+    campaign_id: str | ObjectId | None = None,
+) -> dict:
+    """The `experiences` row (PRD §1.3). Shared by promote() and the engine's
+    `experiences` adapter so both write the same shape."""
+    doc = {
+        "problem_text": problem_text,
+        "solution_text": solution_text,
+        "outcome": "verified",
+        "action_id": ObjectId(action_id),
+        "embedding": vector,
+        "metadata": {**(metadata or {}), "created_at": utcnow()},
+        "verified": True,
+        "created_at": utcnow(),
+    }
+    if campaign_id is not None:
+        doc["campaign_id"] = ObjectId(campaign_id)
+    return doc
+
+
 async def promote(
     action_id: str | ObjectId,
     *,
@@ -31,18 +61,9 @@ async def promote(
     (someone else moved the action) OR the transaction was aborted; either way
     no experience was written and no verified_at was set.
     """
-    vector = await embed(f"{problem_text}\n\n{solution_text}", input_type="document")
-
-    experience_doc = {
-        "problem_text": problem_text,
-        "solution_text": solution_text,
-        "outcome": "verified",
-        "action_id": ObjectId(action_id),
-        "embedding": vector,
-        "metadata": metadata or {},
-        "verified": True,
-        "created_at": utcnow(),
-    }
+    vector = await embed_experience(problem_text, solution_text)
+    experience_doc = experience_document(
+        action_id, problem_text=problem_text, solution_text=solution_text, metadata=metadata, vector=vector)
 
     client = get_client()
     db = get_db()
