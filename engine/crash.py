@@ -36,6 +36,22 @@ def _default_handler(msg: str) -> None:
 _handler: Callable[[str], None] = _default_handler
 _override: str | None = None
 _hits: Counter = Counter()
+_requested: tuple[str, Callable[[str], None] | None] | None = None
+
+
+def request_crash(point: str = "sent_before_receipt", handler: Callable[[str], None] | None = None) -> None:
+    """Arm a one-shot crash at the next `point` reached by ANY adapter/operation in
+    this process (the chaos panel's "Kill a worker"). Default point: the external
+    call landed but its receipt isn't recorded, the worst case for duplicates.
+    `handler` overrides how the worker dies (default: os._exit(137))."""
+    global _requested
+    if point not in POINTS:
+        raise ValueError(f"unknown crash point {point!r}; one of {POINTS}")
+    _requested = (point, handler)
+
+
+def crash_requested() -> bool:
+    return _requested is not None
 
 
 def parse(spec: str) -> list[tuple[str, str, str, int]]:
@@ -51,13 +67,20 @@ def parse(spec: str) -> list[tuple[str, str, str, int]]:
 def configure(spec: str | None, handler: Callable[[str], None] | None = None) -> None:
     """Programmatic CRASH_AT (overrides the env var). Tests pass a handler that
     raises instead of exiting. configure(None) resets everything."""
-    global _override, _handler
+    global _override, _handler, _requested
     _override = spec
     _handler = handler or _default_handler
+    _requested = None
     _hits.clear()
 
 
 def maybe_crash(point: str, adapter: str, operation: str) -> None:
+    global _requested
+    if _requested is not None and _requested[0] == point:
+        handler = _requested[1] or _handler
+        _requested = None
+        handler(f"{point}:{adapter}:{operation}#requested")
+        return
     spec = _override if _override is not None else os.environ.get("CRASH_AT", "")
     if not spec:
         return
