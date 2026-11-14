@@ -128,15 +128,22 @@
 
   const queued = new Set();
   let frame = 0;
+  // Line the panel up now (cheap: two style writes), and rebuild its displacement map
+  // on the next frame. Every frame also re-places ALL panels, because one panel
+  // growing moves its siblings without resizing them, and a moved panel would keep
+  // showing the patch of photo that used to be behind it.
   function schedule(st) {
+    place(st);
     queued.add(st);
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      for (const s of queued) { place(s); rebuild(s); }
+      for (const s of items.values()) place(s);
+      for (const s of queued) rebuild(s);
       queued.clear();
     });
   }
+  const placeAll = () => { for (const st of items.values()) place(st); };
 
   function applyMode() {
     const lite = wantLite();
@@ -163,7 +170,11 @@
   }, { passive: true });
 
   addEventListener("resize", () => { applyMode(); for (const st of items.values()) schedule(st); });
-  // In lite (scrolling) layouts there is no refracted copy to keep aligned, so scroll is free.
+  // Panels inside a scrolling container (the retro page's left column) move with it.
+  addEventListener("scroll", placeAll, { capture: true, passive: true });
+  // Frames are paused while the page is hidden (background tab, hidden pane): catch up on return.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) for (const st of items.values()) schedule(st); });
+  addEventListener("pageshow", placeAll);
 
   window.SutureGlass = { scan, applyMode };
   applyMode();

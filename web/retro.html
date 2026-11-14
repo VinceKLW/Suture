@@ -16,6 +16,7 @@
   body { display: flex; flex-direction: column; min-height: 100vh; }
   main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); gap: 16px; padding: 16px; }
   .col { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  #left > .panel { flex-shrink: 0; }  /* glass panels clip (overflow hidden), so let the column scroll instead of squashing them */
   html.glass-liquid #left { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; padding-right: 2px; }
   html.glass-liquid #chatPanel { min-height: 0; height: 100%; }
   /* Lite (page scrolls): keep the chat in view beside the long retro. */
@@ -151,8 +152,7 @@
 
     <section class="glass panel" id="factsPanel">
       <div class="glass-content">
-        <div class="panel-head"><div><div class="kicker">What happened</div><h2>From the ledger</h2></div>
-          <span class="count"><span class="src ledger"><i></i>computed by code, not the model</span></span></div>
+        <div class="panel-head"><div><div class="kicker">What happened</div><h2>From the ledger</h2></div></div>
         <div id="facts"></div>
       </div>
     </section>
