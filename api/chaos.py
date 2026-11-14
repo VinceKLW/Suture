@@ -37,10 +37,20 @@ PACE_S = float(os.environ.get("CHAOS_PACE_S", "2.5"))       # pause before each 
 LEASE_S = os.environ.get("CHAOS_LEASE_S", "5")              # how long a dead worker's lease blocks recovery
 RESTART_S = float(os.environ.get("CHAOS_RESTART_S", "1.5"))  # gap between a kill and the next worker
 PLAYBOOKS = ("rotate", "fix", "notify")
-FIX_TRIGGER = {
-    "repo": "acme/api", "ci_result": "success",
-    "failure_text": "CI red on acme/api: ERR_REQUIRE_ESM thrown by node-fetch under require()",
-}
+
+
+def _fix_trigger() -> dict:
+    """Trigger for the fix step. If a real GitHub repo is in GITHUB_PR_REPOS and
+    GITHUB_TOKEN is set, point the fix PR at it; the github_pr adapter then opens
+    a real PR instead of hitting the in-memory sim. Otherwise fall back to the
+    simulated repo so the chaos panel still runs offline."""
+    from adapters import github_real
+    repo = next(iter(github_real.real_repos()), "acme/api")
+    return {
+        "repo": repo,
+        "ci_result": "success",  # unused in real mode (real CI runs on actual Actions)
+        "failure_text": f"CI red on {repo}: ERR_REQUIRE_ESM thrown by node-fetch under require()",
+    }
 
 
 class WorkerKilled(BaseException):
@@ -162,7 +172,7 @@ async def start():
     cid = await create_campaign(
         "incident", kind="compound",
         trigger={"source": "chaos_panel", "summary": "AWS access key leaked in a public commit",
-                 **FIX_TRIGGER, "head_sha": secrets.token_hex(4), "payload": world},
+                 **_fix_trigger(), "head_sha": secrets.token_hex(4), "payload": world},
         config={"owner_email": OWNER, "playbook_path": str(compose_playbook(PLAYBOOKS))},
     )
     _run = _Run(cid, world["access_key_id"])
