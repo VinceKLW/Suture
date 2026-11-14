@@ -1,4 +1,4 @@
-# CLAUDE.md: Incident Recovery Agent
+# CLAUDE.md: suture
 
 MongoDB "Agents in Context" hackathon (Statement 3: Finish the Job). Read `PRD.md` §0–§2 first.
 Python 3.13+, FastAPI, pymongo async (`AsyncMongoClient`), MongoDB Atlas.
