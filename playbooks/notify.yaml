@@ -1,3 +1,16 @@
-# Owner: slice D. See PRD §1.5 for format.
+# Notify playbook (slice D). See PRD §1.5 for format and §6 for semantics.
+# One step: email the owner, then confirm delivery by reading the message back.
+# The adapter stamps X-Recovery-Action-Id on the message, so a crash between
+# `sent` and `receipt` is resolved by lookup() instead of a second email.
 name: notify
-steps: []
+steps:
+  - id: notify_owner
+    adapter: notify_email
+    operation: send_email
+    inputs:
+      to: "${campaign.config.owner_email}"        # falls back to NOTIFY_DEFAULT_TO
+      subject: "Incident resolved: ${campaign.trigger.summary}"
+      body: >-
+        The recovery campaign for this incident has finished.
+        Every action was independently verified; see the proof view for the
+        full chain of state transitions and receipts.
