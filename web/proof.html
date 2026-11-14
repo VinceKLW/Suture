@@ -91,7 +91,7 @@
   <div class="stats" id="stats"></div>
   <h2>Dependency graph</h2>
   <div class="panel" id="dag"><div class="empty">Loading…</div></div>
-  <h2>Every action, every transition, every receipt</h2>
+  <h2>Action history and receipts</h2>
   <div id="cards"></div>
 </div>
 
@@ -110,10 +110,10 @@ function renderVerdict(report) {
   const s = report.summary;
   const el = $("verdict");
   let klass = "", big = "", why = "";
-  if (!s.actions) { big = "No actions recorded yet"; why = "This campaign has not planned any work."; }
+  if (!s.actions) { big = "No actions recorded yet"; why = "No actions have been created for this campaign."; }
   else if (!s.chains_intact) { klass = "bad"; big = "Ledger inconsistency found"; why = `${s.broken_chains} action(s) have a history that is not a legal path through the state machine.`; }
-  else if (s.by_state.failed) { klass = "bad"; big = `${s.by_state.failed} action(s) failed`; why = "Failed actions are listed below with what was observed."; }
-  else if (s.all_verified) { klass = "ok"; big = `All ${s.actions} actions independently verified`; why = `${s.transitions} fenced transitions, every history intact${s.recovered ? `, ${s.recovered} recovered after a crash without re-sending` : ""}${s.adapted ? `, ${s.adapted} verified after a proposed mapping` : ""}.`; }
+  else if (s.by_state.failed) { klass = "bad"; big = `${s.by_state.failed} action(s) failed`; why = `Failed: ${report.nodes.filter((n) => n.state === "failed").map((n) => n.label).join(", ")}.`; }
+  else if (s.all_verified) { klass = "ok"; big = `All ${s.actions} actions independently verified`; why = `${s.transitions} fenced transitions. Each action's recorded history is an unbroken, legal path to its current state${s.recovered ? `; ${s.recovered} recovered after a crash without re-sending` : ""}${s.adapted ? `; ${s.adapted} verified after a proposed mapping` : ""}.`; }
   else { big = `${s.verified} of ${s.actions} actions verified`; why = `${s.open} still in progress. This page updates as the ledger changes.`; }
   el.className = `verdict ${klass}`;
   el.innerHTML = `<span class="big">${esc(big)}</span><span class="why">${esc(why)}</span>`;

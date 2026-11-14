@@ -109,7 +109,7 @@
 <header>
   <div>
     <h1>Incident Recovery Agent</h1>
-    <div class="sub">Every action: intended → sent → receipt → verified. Nothing is trusted until it is read back.</div>
+    <div class="sub">Each action moves intended → sent → receipt → verified. It reaches verified only after verify() reads the effect back from the external system.</div>
   </div>
   <div class="spacer"></div>
   <div class="live" id="live" title="MongoDB change stream → Server-Sent Events"><span class="dot"></span><span id="liveText">connecting…</span></div>
@@ -118,7 +118,7 @@
 <main>
   <section class="panel" id="campaignPanel">
     <h2>Campaigns <span class="count" id="campaignCount"></span></h2>
-    <div id="campaigns"><div class="empty">No campaigns yet. Start one and it shows up here without a refresh.</div></div>
+    <div id="campaigns"><div class="empty">No campaigns yet. A new one appears here as soon as it is created.</div></div>
   </section>
 
   <div class="stack">
@@ -128,9 +128,9 @@
     </section>
 
     <section class="panel" id="comparePanel">
-      <h2>Same crash, two workers <button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></h2>
+      <h2>Crash comparison: naive retry and ledger <button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></h2>
       <div class="compare">
-        <div class="side" id="naiveSide"><h3>Naive retry</h3><div class="empty">Not run yet. Replay the scenario with a worker that only knows how to start over.</div></div>
+        <div class="side" id="naiveSide"><h3>Naive retry</h3><div class="empty">Not run yet. The baseline keeps no record of what it already did, so after a crash it restarts from step one.</div></div>
         <div class="side" id="ledgerSide"><h3>Ledger</h3><div class="empty">Select a campaign.</div></div>
       </div>
     </section>
@@ -262,7 +262,7 @@ function renderLedgerSide(list) {
     ? `<div class="result bad">${extra} action(s) were sent more than once</div>`
     : open
       ? `<div class="result wait">0 duplicate sends so far · ${open} action(s) still in progress</div>`
-      : `<div class="result ok">0 duplicate sends${recovered ? ` · ${recovered} crash${recovered === 1 ? "" : "es"} resolved by lookup(), not by a retry` : ""}</div>`;
+      : `<div class="result ok">0 duplicate sends${recovered ? ` · ${recovered} crash${recovered === 1 ? "" : "es"} resolved by lookup()` : ""}</div>`;
   $("ledgerSide").innerHTML = `<h3>Ledger <span class="note">this campaign</span></h3>
     <div class="sub">Each action is sent once, stamped with its action id. Counts are the intended → sent transitions recorded in MongoDB.</div>
     ${rows || `<div class="empty">Nothing sent yet.</div>`}${verdict}`;

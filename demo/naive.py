@@ -118,7 +118,7 @@ def run_naive(crash_after: str | None = DEFAULT_CRASH_AFTER) -> dict:
         "emails_sent": len(world.emails),
         "verdict": (
             f"{duplicates} duplicate side effect(s)"
-            + (f", {len(orphaned)} live access key nobody is tracking" if orphaned else "")
+            + (f", {len(orphaned)} active access key that no repo uses" if orphaned else "")
             if duplicates
             else "no duplicates (nothing crashed)"
         ),
