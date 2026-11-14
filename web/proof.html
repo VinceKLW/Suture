@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Proof view · suture</title>
 <!-- Owner: slice D. Vanilla HTML + fetch + inline SVG, no build step. Served at /proof/<campaign_id>. Styled to DESIGN.md. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230D1210'/%3E%3Cg fill='none' stroke='%23F2F0EA' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='46' cy='50' r='26'/%3E%3Cpolyline points='6,50 43,50'/%3E%3Cpolyline points='49,50 72,50 76.5,54.5 87,44'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230D1210'/%3E%3Cg fill='none' stroke='%23F2F0EA' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='14' y='22' width='72' height='60' rx='14'/%3E%3Cpolyline points='26,52 74,52'/%3E%3Cpolyline points='36,43 36,61'/%3E%3Cpolyline points='50,43 50,61'/%3E%3Cpolyline points='64,43 64,61'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&family=Instrument+Serif&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
 <style>
   :root {
     /* DESIGN.md §10 */
@@ -18,7 +18,6 @@
     --amber: #E8A252;  --amber-soft: rgba(232,162,82,.12);  --dusk: #7FA7D9;
     --state-intended: #6E746F;  --state-sent: #7FA7D9;  --state-receipt: #D9B26A;
     --state-verified: #8DBF86;  --state-unknown: #6FB7B0;  --state-failed: #E0705C;
-    --font-display: "Instrument Serif", Georgia, serif;
     --font-text: "Geist", system-ui, sans-serif;
     --font-mono: "Geist Mono", ui-monospace, monospace;
     --r-sm: 6px;  --r-md: 12px;  --r-pill: 999px;
@@ -37,7 +36,7 @@
   header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--hairline); background: var(--night); }
   header .brand { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
   header svg { width: 32px; height: 32px; flex: none; }
-  header .wordmark { font-size: 16px; line-height: 1.3; white-space: nowrap; }
+  header .wordmark { font-size: 28px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; padding-bottom: 3px; }  /* x-height about half the mark */
   .spacer { flex: 1; }
   a.link { color: var(--ink); font-size: 13px; text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--fog); text-underline-offset: 3px; transition: text-decoration-color var(--dur) var(--ease); }
   a.link:hover { text-decoration-color: var(--amber); }
@@ -48,7 +47,7 @@
   .hero { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 32px 48px; }
   .hero .lede { flex: 1 1 420px; min-width: 0; }
   .hero .kicker { display: flex; align-items: center; gap: 8px; }
-  .hero h1 { margin: 16px 0 0; font: 400 40px/1.05 var(--font-display); color: var(--ink); }
+  .hero h1 { margin: 16px 0 0; font: 400 clamp(32px, 4.6vw, 64px)/1.05 var(--font-text); letter-spacing: -.02em; color: var(--ink); }
   .hero .why { margin: 16px 0 0; max-width: 62ch; color: var(--sage); }
   .hero .cid { margin-top: 12px; color: var(--fog); overflow-wrap: anywhere; }
   .stats { display: flex; justify-content: flex-end; margin-left: auto; }
@@ -100,17 +99,20 @@
   .card .label { display: block; margin-bottom: 12px; }
   .card .label:not(:first-child) { margin-top: 24px; }
 
-  /* thread timeline, vertical: a dot per state; a crash is a gap, then the same line resumes */
-  .vthread { list-style: none; margin: 0; padding: 0; }
-  .vstep { position: relative; padding: 0 0 16px 24px; }
+  /* seam timeline, vertical: one line crossed by a short stitch per state, like the logo;
+     a crash is a gap in the line, then the same line resumes */
+  .vthread { list-style: none; margin: 0; padding: 8px 0; position: relative; }
+  .vstep { position: relative; padding: 0 0 16px 28px; }
   .vstep:last-child { padding-bottom: 0; }
-  .vstep .dot { position: absolute; left: 0; top: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .vstep .dot { position: absolute; left: 0; top: 10px; width: 13px; height: 2px; border-radius: 1px; background: var(--c); }
   .vstep.current .dot { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
   .vstep.current.s-unknown .dot { animation: breathe 2.4s var(--ease) infinite alternate; }
-  .vstep:not(:last-child)::after, .vstep .resume { content: ""; position: absolute; left: 3.5px; width: 1px; background: var(--hairline-strong); }
-  .vstep:not(:last-child)::after { top: 15px; bottom: -7px; }
-  .vstep.cut:not(:last-child)::after { bottom: auto; height: calc((100% - 8px) * .36); }
-  .vstep .resume { bottom: -7px; height: calc((100% - 8px) * .36); }
+  .vstep:not(:last-child)::after, .vstep .resume, .vstep:first-child::before, .vstep:last-child::after { content: ""; position: absolute; left: 6px; width: 1px; background: var(--hairline-strong); }
+  .vstep:not(:last-child)::after { top: 11px; bottom: -11px; }
+  .vstep:first-child::before { top: 3px; height: 8px; }      /* the seam runs a little past its first and last stitch */
+  .vstep:last-child::after { top: 11px; height: 8px; }
+  .vstep.cut:not(:last-child)::after { bottom: auto; height: 38%; }
+  .vstep .resume { bottom: -11px; height: 38%; }
   .vstep .move { color: var(--sage); }
   .vstep .move b { font-weight: 500; color: var(--c); }
   .vstep .reason { color: var(--sage); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -128,8 +130,8 @@
 <body>
 <header>
   <a class="brand" href="/" aria-label="suture, dashboard">
-    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <circle cx="46" cy="50" r="26"/><polyline points="6,50 43,50"/><polyline points="49,50 72,50 76.5,54.5 87,44"/>
+    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="14" y="22" width="72" height="60" rx="14"/><polyline points="26,52 74,52"/><polyline points="36,43 36,61"/><polyline points="50,43 50,61"/><polyline points="64,43 64,61"/>
     </svg>
     <span class="wordmark">suture</span>
   </a>
@@ -220,7 +222,7 @@ function dag(report) {
   return `<svg style="max-width:${width}px" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dependency graph of actions">${edges}${boxes}</svg>`;
 }
 
-// The action's history as one vertical thread: where it started, then every transition.
+// The action's history as one vertical seam: where it started, then a stitch per transition.
 function thread(n) {
   const steps = [{ to: n.timeline.length ? n.timeline[0].from : n.state, ts: n.created_at, reason: "planned" }, ...n.timeline];
   const last = steps.length - 1;

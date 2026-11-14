@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>suture</title>
 <!-- Owner: slice D. Vanilla HTML + fetch + EventSource, no build step. Styled to DESIGN.md. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230D1210'/%3E%3Cg fill='none' stroke='%23F2F0EA' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='46' cy='50' r='26'/%3E%3Cpolyline points='6,50 43,50'/%3E%3Cpolyline points='49,50 72,50 76.5,54.5 87,44'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230D1210'/%3E%3Cg fill='none' stroke='%23F2F0EA' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='14' y='22' width='72' height='60' rx='14'/%3E%3Cpolyline points='26,52 74,52'/%3E%3Cpolyline points='36,43 36,61'/%3E%3Cpolyline points='50,43 50,61'/%3E%3Cpolyline points='64,43 64,61'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&family=Instrument+Serif&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
 <style>
   :root {
     /* DESIGN.md §10 */
@@ -18,7 +18,6 @@
     --amber: #E8A252;  --amber-soft: rgba(232,162,82,.12);  --dusk: #7FA7D9;
     --state-intended: #6E746F;  --state-sent: #7FA7D9;  --state-receipt: #D9B26A;
     --state-verified: #8DBF86;  --state-unknown: #6FB7B0;  --state-failed: #E0705C;
-    --font-display: "Instrument Serif", Georgia, serif;
     --font-text: "Geist", system-ui, sans-serif;
     --font-mono: "Geist Mono", ui-monospace, monospace;
     --r-sm: 6px;  --r-md: 12px;  --r-pill: 999px;
@@ -37,8 +36,8 @@
 
   header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--hairline); background: var(--night); position: sticky; top: 0; z-index: 5; }
   header svg { width: 32px; height: 32px; flex: none; color: var(--ink); }
-  header .wordmark { font-size: 16px; line-height: 1.3; white-space: nowrap; }
-  header .sub { color: var(--sage); font-size: 13px; line-height: 1.45; }
+  header .wordmark { font-size: 28px; line-height: 1; letter-spacing: -.01em; white-space: nowrap; padding-bottom: 3px; }  /* x-height about half the mark */
+  header .sub { color: var(--sage); font-size: 13px; line-height: 1.45; max-width: 76ch; margin-left: 12px; }
   .spacer { flex: 1; }
   .live { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid var(--hairline); border-radius: var(--r-pill); font-size: 13px; color: var(--sage); white-space: nowrap; }
   .live .detail { margin-left: -8px; white-space: pre; }
@@ -49,7 +48,8 @@
 
   main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 16px; padding: 16px 24px 48px; align-items: start; }
   @media (max-width: 1150px) { main { grid-template-columns: 264px minmax(0, 1fr); } #feedPanel { grid-column: 1 / -1; } }
-  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 32px; } header { padding: 12px 16px; } header .sub, .live .detail { display: none; } }
+  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 32px; } header { padding: 12px 16px; } .live .detail { display: none; } }
+  @media (max-width: 1150px) { header .sub { display: none; } }
   .stack { display: grid; gap: 16px; min-width: 0; }
   .panel { background: var(--forest); border: 1px solid var(--hairline); border-radius: var(--r-md); overflow: hidden; min-width: 0; }
   .panel > .phead { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
@@ -57,7 +57,7 @@
   .panel > .phead .meta { margin-left: auto; color: var(--fog); font-size: 13px; font-variant-numeric: tabular-nums; }
   .note { padding: 16px 20px; color: var(--sage); font-size: 13px; line-height: 1.45; }
   .empty { padding: 48px 24px; }
-  .empty .title { font: 400 40px/1.05 var(--font-display); color: var(--sage); }
+  .empty .title { font: 400 32px/1.15 var(--font-text); letter-spacing: -.01em; color: var(--sage); }
   .empty .line { margin-top: 12px; color: var(--sage); font-size: 13px; line-height: 1.45; }
 
   .badge { display: inline-block; padding: 1px 8px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.5; font-weight: 500; white-space: nowrap;
@@ -109,17 +109,22 @@
   .action .target { color: var(--sage); font-size: 13px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .action .ids { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--fog); }
 
-  /* thread timeline: one line, a dot per state; a crash is a gap, then the same line resumes */
-  .thread { display: flex; margin: 16px 0 12px; }
-  .tstep { position: relative; flex: 1 1 0; min-width: 0; max-width: 112px; padding-top: 16px; }
-  .tstep .dot { position: absolute; top: 0; left: 0; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--hairline-strong); }
-  .tstep.reached .dot { background: var(--c); border-color: var(--c); }
-  .tstep.current .dot { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
+  /* seam timeline: one line crossed by a short stitch per state, like the logo;
+     a crash is a gap in the line, then the same line resumes */
+  .thread { display: flex; margin: 16px 0 12px; padding-left: 8px; }
+  .tstep { position: relative; flex: 1 1 0; min-width: 0; max-width: 112px; padding-top: 20px; }
+  .tstep .dot { position: absolute; top: 0; left: 0; width: 2px; height: 13px; border-radius: 1px; background: var(--hairline-strong); }
+  .tstep.reached .dot { background: var(--c); }
+  .tstep.current .dot { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
   .tstep.current.s-unknown .dot { animation: breathe 2.4s var(--ease) infinite alternate; }
-  .tstep .seg, .tstep .seg::after { position: absolute; top: 4px; height: 1px; background: var(--hairline); }
-  .tstep .seg { left: calc(8px - 100%); width: calc(100% - 8px); transform-origin: left; }
+  .tstep .seg, .tstep .seg::after, .tstep .end { position: absolute; top: 6px; height: 1px; background: var(--hairline); }
+  .tstep .seg { left: calc(1px - 100%); width: 100%; transform-origin: left; }
+  .tstep .end { width: 8px; }                      /* the seam runs a little past its first and last stitch */
+  .tstep .end.lead { left: -8px; background: var(--hairline-strong); }
+  .tstep .end.tail { left: 1px; }
+  .tstep.reached .end.tail { background: var(--hairline-strong); }
   .tstep.reached .seg { background: var(--hairline-strong); }
-  .tstep.gap .seg { width: calc((100% - 8px) * .4); }
+  .tstep.gap .seg { width: 40%; }
   .tstep.gap .seg::after { content: ""; top: 0; left: 150%; width: 100%; background: var(--hairline-strong); }
   .tstep.draw .seg { animation: draw var(--dur) var(--ease); }
   @keyframes draw { from { transform: scaleX(0); } }
@@ -153,13 +158,11 @@
 </head>
 <body>
 <header>
-  <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <circle cx="46" cy="50" r="26"/><polyline points="6,50 43,50"/><polyline points="49,50 72,50 76.5,54.5 87,44"/>
+  <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="14" y="22" width="72" height="60" rx="14"/><polyline points="26,52 74,52"/><polyline points="36,43 36,61"/><polyline points="50,43 50,61"/><polyline points="64,43 64,61"/>
   </svg>
-  <div>
-    <div class="wordmark">suture</div>
-    <div class="sub">Each action moves intended → sent → receipt → verified. It reaches verified only after verify() reads the effect back from the external system.</div>
-  </div>
+  <div class="wordmark">suture</div>
+  <div class="sub">Each action moves intended → sent → receipt → verified. It reaches verified only after verify() reads the effect back from the external system.</div>
   <div class="spacer"></div>
   <div class="live" id="live" title="MongoDB change stream → Server-Sent Events"><span class="dot"></span><span id="liveText">Connecting</span><span class="detail" id="liveDetail"></span></div>
 </header>
@@ -194,7 +197,7 @@
 <script>
 const STATES = ["intended", "sent", "receipt", "verified", "unknown", "failed"];
 const IN_FLIGHT = ["sent", "receipt", "unknown"];
-// the states an action still has ahead of it, drawn as empty dots on its thread
+// the states an action still has ahead of it, drawn as unlit stitches on its seam
 const AHEAD = { intended: ["sent", "receipt", "verified"], sent: ["receipt", "verified"], receipt: ["verified"], unknown: ["verified"] };
 const campaigns = new Map();       // id -> campaign doc (with counts)
 const actions = new Map();         // campaign id -> Map(action id -> action doc)
@@ -254,7 +257,7 @@ function renderCampaigns() {
   }).join("");
 }
 
-// One dot per state the action has been in, then empty dots for the states still ahead.
+// One stitch per state the action has been in, then unlit stitches for the states still ahead.
 function thread(a, justChanged) {
   const seen = a.transitions || [];
   const steps = [{ state: seen.length ? seen[0].from : a.state, ts: a.created_at, reached: true }];
@@ -268,7 +271,8 @@ function thread(a, justChanged) {
     if (s.gap) classes.push("gap");
     if (i === lastReached && justChanged) classes.push("draw");
     const tip = s.reached && i ? `${clock(s.ts)}${s.reason ? " · " + s.reason : ""}` : "";
-    return `<div class="${classes.join(" ")}" title="${esc(tip)}">${i ? `<span class="seg"></span>` : ""}<span class="dot"></span>
+    const ends = `${i ? "" : `<span class="end lead"></span>`}${i === steps.length - 1 ? `<span class="end tail"></span>` : ""}`;
+    return `<div class="${classes.join(" ")}" title="${esc(tip)}">${i ? `<span class="seg"></span>` : ""}${ends}<span class="dot"></span>
       <span class="tname">${esc(s.state)}</span><span class="tts mono">${s.reached ? esc(clock(s.ts).slice(0, 8)) : "&nbsp;"}</span></div>`;
   }).join("")}</div>`;
 }
