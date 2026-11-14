@@ -51,6 +51,17 @@ def _find_pr_by_action(repo: _Repo, action_id: str) -> tuple[int, dict] | None:
     return None
 
 
+def _locate_pr(repo: _Repo, action_id: str, payload: dict) -> tuple[int, dict] | None:
+    """The PR this action is about. open_pr actions own their PR (by action_id);
+    later steps (wait_ci / verify) point at it by head_sha, else the latest PR."""
+    found = _find_pr_by_action(repo, action_id)
+    if found:
+        return found
+    sha = payload.get("head_sha")
+    matches = [(n, pr) for n, pr in repo.prs.items() if not sha or pr["head_sha"] == sha]
+    return max(matches, key=lambda m: m[0]) if matches else None
+
+
 class GithubPrAdapter:
     """Supported operations (params shape):
 
@@ -68,7 +79,8 @@ class GithubPrAdapter:
     name = "github_pr"
 
     async def prepare(self, action: dict) -> dict:
-        return dict(action.get("params", {}))
+        # Carry the operation so execute()/verify() dispatch on it (engine passes the action doc).
+        return {"operation": action.get("operation", "open_pr"), **(action.get("params") or {})}
 
     async def execute(self, action_id: str, payload: dict) -> ExecuteResult:
         op = payload.get("operation") or payload.get("op") or "open_pr"
@@ -114,6 +126,10 @@ class GithubPrAdapter:
                 waited += 0.1
             return {"external_ref": {"repo": repo_name, "head_sha": head_sha}, "receipt": True}
 
+        if op in ("verify", "check_ci"):
+            # Read-only: the check itself happens in verify(). Safe to repeat.
+            return {"external_ref": {"repo": repo_name, "head_sha": payload.get("head_sha")}, "receipt": True}
+
         raise ValueError(f"Unknown github_pr operation: {op!r}")
 
     async def lookup(self, action_id: str) -> LookupResult:
@@ -134,17 +150,30 @@ class GithubPrAdapter:
         Reads payload['expected_field'] if the caller wants to override the
         default field name (this is how model-proposed mappings are applied).
         """
-        op = payload.get("operation") or payload.get("op") or "open_pr"
+        # Operation semantics when called by the engine (prepare() sets "operation"):
+        #   open_pr  -> the PR exists on recovery/<action_id> with the action-id marker
+        #   wait_ci  -> CI for the PR's head_sha has concluded (pass or fail)
+        #   verify   -> CI concluded green, read via the (possibly renamed) field
+        # Direct calls without "operation" keep the original CI-green check.
+        op = payload.get("operation") or payload.get("op")
         repo_name = payload["repo"]
         repo = store.repo(repo_name)
-        found = _find_pr_by_action(repo, action_id)
+        found = _locate_pr(repo, action_id, payload)
         if not found:
             return {"outcome": "failed", "observed": {"reason": "no PR found for action"}}
         pr_number, pr = found
         head_sha = pr["head_sha"]
+
+        if op == "open_pr":
+            ok = pr["branch"] == _branch_name(action_id) and f"action-id: {action_id}" in pr["body"]
+            return {"outcome": "verified" if ok else "failed",
+                    "observed": {"pr_number": pr_number, "branch": pr["branch"], "head_sha": head_sha}}
+
         ci_value = repo.ci.get(head_sha, "pending")
         if ci_value == "pending":
             return {"outcome": "unknown", "observed": {"ci": "pending", "head_sha": head_sha}}
+        if op == "wait_ci":
+            return {"outcome": "verified", "observed": {"ci_concluded": True, "head_sha": head_sha}}
 
         # Build the raw response the "GitHub API" would hand us. rename_mode
         # simulates GitHub silently renaming `status` → `conclusion`.
