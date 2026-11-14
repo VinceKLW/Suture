@@ -76,6 +76,27 @@
 
   a.link { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
   a.link:hover { text-decoration: underline; }
+  .stack { display: grid; gap: 16px; min-width: 0; }
+  .btn { margin-left: auto; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  @media (max-width: 760px) { .compare { grid-template-columns: minmax(0, 1fr); } }
+  .side { min-width: 0; padding-bottom: 4px; }
+  .side + .side { border-left: 1px solid var(--line); }
+  @media (max-width: 760px) { .side + .side { border-left: 0; border-top: 1px solid var(--line); } }
+  .side h3 { margin: 0; padding: 10px 14px 6px; font-size: 13px; }
+  .side h3 .note { margin-left: 6px; font-weight: 400; }
+  .side .sub { padding: 0 14px 8px; color: var(--muted); font-size: 12px; }
+  .effect { display: flex; align-items: baseline; gap: 8px; padding: 5px 14px; font-size: 12.5px; }
+  .effect .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .effect .n { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .effect.dup .n, .effect.dup .name { color: var(--failed); }
+  .effect .note { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .result { margin: 8px 14px 10px; padding: 8px 11px; border-radius: 8px; font-size: 12.5px; font-weight: 600; }
+  .result.bad { background: rgba(242,109,109,.1); color: var(--failed); border: 1px solid rgba(242,109,109,.4); }
+  .result.ok { background: rgba(62,207,142,.1); color: var(--verified); border: 1px solid rgba(62,207,142,.4); }
+  .result.wait { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
   #feed { max-height: 70vh; overflow: auto; }
   .event { padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
   .event .time { color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -99,10 +120,20 @@
     <div id="campaigns"><div class="empty">No campaigns yet. Start one and it shows up here without a refresh.</div></div>
   </section>
 
-  <section class="panel" id="detailPanel">
-    <h2>Action ledger</h2>
-    <div id="detail"><div class="empty">Select a campaign to see its actions.</div></div>
-  </section>
+  <div class="stack">
+    <section class="panel" id="detailPanel">
+      <h2>Action ledger</h2>
+      <div id="detail"><div class="empty">Select a campaign to see its actions.</div></div>
+    </section>
+
+    <section class="panel" id="comparePanel">
+      <h2>Same crash, two workers <button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></h2>
+      <div class="compare">
+        <div class="side" id="naiveSide"><h3>Naive retry</h3><div class="empty">Not run yet. Replay the scenario with a worker that only knows how to start over.</div></div>
+        <div class="side" id="ledgerSide"><h3>Ledger</h3><div class="empty">Select a campaign.</div></div>
+      </div>
+    </section>
+  </div>
 
   <section class="panel" id="feedPanel">
     <h2>Live changes <span class="count" id="feedCount">0 events</span></h2>
@@ -205,6 +236,53 @@ function renderDetail() {
     </div>
     ${rows || `<div class="empty">This campaign has no actions yet.</div>`}`;
   if (typeof renderDetailLinks === "function") renderDetailLinks(c);
+  renderLedgerSide(list);
+}
+
+// ---- naive baseline vs the ledger (demo step 13) ---------------------------
+let naive = null;
+
+function renderLedgerSide(list) {
+  const done = list.filter((a) => a.state !== "intended");
+  if (!list.length) { $("ledgerSide").innerHTML = `<h3>Ledger</h3><div class="empty">This campaign has no actions yet.</div>`; return; }
+  const sends = (a) => (a.transitions || []).filter((t) => t.from === "intended" && t.to === "sent").length;
+  const extra = done.reduce((n, a) => n + Math.max(sends(a) - 1, 0), 0);
+  const recovered = done.filter(wasRecovered).length;
+  const open = list.filter((a) => !["verified", "failed"].includes(a.state)).length;
+  const rows = done.map((a) => `<div class="effect ${sends(a) > 1 ? "dup" : ""}">
+      <span class="name">${esc(stepLabel(a))}${targetLabel(a) ? ` <span class="note">${esc(targetLabel(a))}</span>` : ""}</span>
+      ${wasRecovered(a) ? `<span class="tag">recovered</span>` : ""}
+      <span class="n">×${sends(a)}</span>
+    </div>`).join("");
+  const verdict = extra
+    ? `<div class="result bad">${extra} action(s) were sent more than once</div>`
+    : open
+      ? `<div class="result wait">0 duplicate sends so far · ${open} action(s) still in progress</div>`
+      : `<div class="result ok">0 duplicate sends${recovered ? ` · ${recovered} crash${recovered === 1 ? "" : "es"} resolved by lookup(), not by a retry` : ""}</div>`;
+  $("ledgerSide").innerHTML = `<h3>Ledger <span class="note">this campaign</span></h3>
+    <div class="sub">Each action is sent once, stamped with its action id. Counts are the intended → sent transitions recorded in MongoDB.</div>
+    ${rows || `<div class="empty">Nothing sent yet.</div>`}${verdict}`;
+}
+
+function renderNaiveSide() {
+  if (!naive) return;
+  const rows = naive.effects.map((e) => `<div class="effect ${e.duplicates ? "dup" : ""}">
+      <span class="name">${esc(e.id)}</span>
+      ${e.duplicates ? `<span class="note">duplicate</span>` : ""}
+      <span class="n">×${e.count}</span>
+    </div>`).join("");
+  $("naiveSide").innerHTML = `<h3>Naive retry <span class="note">no ledger</span></h3>
+    <div class="sub">Crashed after <span class="mono">${esc(naive.crash_after || "nothing")}</span>, then restarted from step one. ${naive.total_calls} external calls; a correct run makes ${naive.expected_calls}.</div>
+    ${rows}<div class="result ${naive.duplicates ? "bad" : "ok"}">${esc(naive.verdict)}</div>`;
+}
+
+async function runNaive() {
+  const btn = $("naiveBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/demo/naive");
+    if (res.ok) { naive = await res.json(); renderNaiveSide(); btn.textContent = "Replay again"; }
+  } finally { btn.disabled = false; }
 }
 
 function renderFeed() {
@@ -292,6 +370,7 @@ function connect() {
   source.onerror = () => setLive(false, "reconnecting…");
 }
 
+$("naiveBtn").addEventListener("click", runNaive);
 $("campaigns").addEventListener("click", (ev) => {
   const el = ev.target.closest(".campaign");
   if (el) select(el.dataset.id);

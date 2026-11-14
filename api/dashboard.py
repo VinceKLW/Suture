@@ -169,6 +169,18 @@ async def get_campaign(campaign_id: str):
     return to_json({"campaign": campaign, "actions": actions})
 
 
+@router.get("/api/demo/naive")
+async def naive_baseline(crash_after: str | None = None, crash: bool = True):
+    """Replay the demo scenario with no ledger (demo/naive.py). Touches no
+    database and no adapter: it only reports what a blind retry would do."""
+    from demo.naive import DEFAULT_CRASH_AFTER, run_naive
+
+    try:
+        return run_naive((crash_after or DEFAULT_CRASH_AFTER) if crash else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
 @router.get("/api/stream")
 async def stream():
     return StreamingResponse(
