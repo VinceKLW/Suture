@@ -1,13 +1,13 @@
 # Design language
 
-How Incident Recovery Agent looks and sounds: the dashboard, the proof view, the README, slides and the demo video.
+How **suture** looks and sounds: the dashboard, the proof view, the README, slides and the demo video.
 Inspired by Perplexity's brand and ads: quiet night scenes, one calm object, a single thread of warm light.
 
 This is a guide, not code. Nothing in `web/` has been changed to match it yet; the
 [mapping table](#from-todays-dashboard) shows where today's tokens would go.
 
 <div align="center">
-  <img src="./docs/images/crash.webp" alt="Crash it. It finishes." width="700"/>
+  <img src="./docs/images/header.webp" alt="suture" width="100%"/>
 </div>
 
 ---
@@ -21,29 +21,33 @@ This is a guide, not code. Nothing in `web/` has been changed to match it yet; t
 3. **Proof over decoration.** Every pixel should help someone trust what happened: states, ids, timestamps,
    receipts. If an element proves nothing, it goes.
 4. **Calm under failure.** A crash is shown, not shouted. Errors are clear and specific, never flashing red banners.
-5. **Nothing happens twice.** The visual motif is one unbroken thread: it can pause (a gap), but it resumes on the
-   same line. Use it for timelines, loaders and the logo.
+5. **Nothing happens twice.** The motif is a seam closed by stitches: one line, each step tied off once. Use it for
+   timelines, loaders and the logo.
 
 ---
 
 ## 2. Logo
 
 <div align="center">
-  <img src="./docs/images/logo.png" alt="Logo" width="120"/>
+  <img src="./docs/images/logo.png" alt="suture logo" width="120"/>
 </div>
 
-A thin circle (the ledger) with one thread passing through it. The thread breaks once in the middle (the crash) and
-carries on along the same line (it resumes, nothing repeated), then turns up into a check (verified).
+A rounded frame holding a seam closed by three stitches: the incident, sewn shut one step at a time. Single weight,
+round caps, drawn on a 100 × 100 grid (`docs/images/logo.svg`).
 
 | Asset | Use |
 |---|---|
 | `docs/images/logo.png` | Mark on a dark tile. README, favicon, slides. |
 | `docs/images/logo-mark.png` | White mark on transparent. Over photos and dark UI. |
 | `docs/images/logo.svg` | The vector source. Favicon and any size in the web UI (`stroke` is `--ink`). |
+| `docs/images/lockup.png` | Mark + "suture" wordmark, transparent. Slides and the demo video. |
 
 - Keep clear space around the mark of at least half its width.
 - Always white (`--ink`) on a dark surface. Never recolour it, add a glow, or put it on a light background.
-- The wordmark is "Incident Recovery Agent" in Geist Regular, sentence case, beside the mark. Never all caps.
+- The name is always **suture**, all lowercase, even at the start of a sentence. Never "Suture" or "SUTURE".
+- The wordmark is "suture" in Geist Regular beside the mark, its x-height about half the mark's height.
+- Inside the glass sphere (the header), the mark is soft grey at about half opacity, slightly refracted, about a
+  third of the sphere's width. It should look like it's inside the glass, not printed on it.
 
 ---
 
@@ -97,18 +101,19 @@ Rules:
 
 | Role | Family | Use |
 |---|---|---|
-| Display | **Instrument Serif** Regular | Hero headlines, section titles in the README and slides, empty-state titles. 40 px and up only. |
-| Text | **Geist** Regular / Medium | Everything else: UI, body, buttons, numbers. |
+| Display + text | **Geist** Regular / Medium | Everything: the wordmark, image titles, headlines, UI, body, numbers. |
 | Mono | **Geist Mono** (or IBM Plex Mono) | Action ids, campaign ids, payloads, logs, code. |
 
-All three are free on Google Fonts. Fallbacks: `Georgia, serif`, `system-ui, sans-serif`, `ui-monospace, monospace`.
+One family for everything, like Perplexity: hierarchy comes from size, weight and colour, never from mixing in a
+second typeface. No serif anywhere. Both are free (Vercel, Google Fonts). Fallbacks: `system-ui, sans-serif`,
+`ui-monospace, monospace`.
 
 ### Scale
 
 | Token | Size / line | Weight | Use |
 |---|---|---|---|
-| `--t-hero` | 64 / 1.0 | Serif | Page hero, poster headline |
-| `--t-title` | 40 / 1.05 | Serif | Section title, empty state |
+| `--t-hero` | 64 / 1.05 | Geist Regular, `letter-spacing: -.02em` | Page hero, image titles |
+| `--t-title` | 32 / 1.15 | Geist Regular, `letter-spacing: -.01em` | Section title, empty state |
 | `--t-h1` | 20 / 1.3 | Geist Medium | Panel title, campaign name |
 | `--t-body` | 15 / 1.55 | Geist Regular | Body |
 | `--t-small` | 13 / 1.45 | Geist Regular | Secondary rows, metadata |
@@ -117,7 +122,8 @@ All three are free on Google Fonts. Fallbacks: `Georgia, serif`, `system-ui, san
 | `--t-mono` | 12.5 / 1.45 | Mono | Ids, payloads |
 
 - Sentence case everywhere. Uppercase only for `--t-label`, always letter-spaced.
-- Numbers are always Geist with `font-variant-numeric: tabular-nums`, never the serif.
+- Numbers use `font-variant-numeric: tabular-nums`.
+- Big type is Regular, never Bold: weight comes from size.
 - Headlines are short statements with a full stop: "Crash it. It finishes."
 
 ---
@@ -145,7 +151,7 @@ No filled bar colour.
 **State badge.** Pill, 6 px radius, 1 px border in the state colour at 50%, text in the state colour, fill at 8%.
 The current step's badge is the only one at full fill (`--amber-soft` + amber text if it's the active step).
 
-**Stat block** (from the posters). Value in `--t-stat` `--ink`, label under it in `--t-label` `--fog`. Several stats
+**Stat block** (UI only, never on images). Value in `--t-stat` `--ink`, label under it in `--t-label` `--fog`. Several stats
 sit in a row separated by 1 px vertical hairlines, right-aligned in their area.
 
 ```
@@ -153,9 +159,10 @@ sit in a row separated by 1 px vertical hairlines, right-aligned in their area.
 DUPLICATE WRITES  │ CALLS, NAIVE MAKES 8  │ RECONCILER SWEEP
 ```
 
-**Thread timeline** (an action's transitions). A single 1 px line in `--hairline-strong` with a dot per state.
-Reached states fill with their colour; the current dot is amber with a soft 8 px halo. A crash is drawn as a small
-gap in the line, then the line continues. Timestamps sit under each dot in `--t-mono` `--fog`.
+**Seam timeline** (an action's transitions). A single 1 px line in `--hairline-strong`, crossed by a short stitch
+per state, like the logo. Reached stitches take their state colour; the current one is amber with a soft 8 px
+halo. A crash is drawn as a small gap in the line, then the line continues. Timestamps sit under each stitch in
+`--t-mono` `--fog`.
 
 **Proof DAG.** Nodes are 12 px radius cards on `--forest` with a 2 px left edge in the state colour. Edges are 1 px
 `--hairline-strong` curves; the edge into the current node is amber.
@@ -172,15 +179,15 @@ The dot breathes (opacity 1 → .5, 2.4 s). No ripple rings.
 "x2" count; the ledger side shows "x1" in `--ink`. The verdict sits under each in a panel with a 2 px left edge,
 never a filled red/green box.
 
-**Empty state.** One line of Instrument Serif at `--t-title` in `--sage`, one line of `--t-small` under it. No
-illustrations, no emoji.
+**Empty state.** One line of Geist at `--t-title` in `--sage`, one line of `--t-small` under it. No illustrations,
+no emoji.
 
 ---
 
 ## 7. Motion
 
 - Slow and deliberate. Durations 200-400 ms, `cubic-bezier(.2, .7, .2, 1)`. Long-exposure feel, never bounce.
-- **State change:** the badge cross-fades to the new colour and the thread draws forward to the next dot (300 ms).
+- **State change:** the badge cross-fades to the new colour and the seam draws forward to the next stitch (300 ms).
 - **New row:** fades in and slides up 4 px. The background flashes `--amber-soft` once, 1.2 s ease-out.
 - **Unknown:** breathes (opacity 1 → .55, 2.4 s). Never blinks.
 - **Crash:** the line stops, a short gap appears, the next segment starts on the same line after the restart.
@@ -196,17 +203,23 @@ images with ChatGPT image generation):
 
 - Cinematic, analog-film photography of quiet nature at night or blue hour: moss, ferns, wild grass, small white and
   yellow wildflowers, still black water.
-- One calm, surreal hero object: a clear glass sphere, a key, a droplet. Prismatic edge highlights, soft halo.
+- Scenes in the spirit of Perplexity's partner ads: a pond of ripples framed by ferns seen from above, one object
+  resting on a mound of moss against pure black, light streaks with floating photo tiles, a person in an armchair
+  in a meadow watching a line of light.
+- A small clear glass sphere appears in every image as a quiet recurring motif, never the whole subject (except the
+  header, where it holds the logo).
 - Long-exposure light streaks in muted blue fading to warm amber. Soft volumetric beams.
 - Fine grain, gentle halation, shallow depth of field, lots of negative space.
 - Never: neon, purple gradients, cyberpunk, robots, circuit boards, holograms, padlocks, shields, UI screenshots,
   3D-render plastic, text baked into the photo.
 
-**Poster layout** for any image that needs to explain something: the photo fades into `--night` at the bottom; a
-`--t-label` kicker in amber, an Instrument Serif headline in `--ink`, two or three lines of Geist body in `--sage`
-bottom-left; a stat row bottom-right. See `docs/images/crash.webp`, `rotate.webp`, `recall.webp`.
+**Image + title.** Section images are wide (2:1, never square) with one short title set on the photo in Geist
+Regular, `--ink`, in the image's darkest empty area: nothing else. No subtitles, no labels, no stats, no captions
+under the image. Title size is about 3.6% of the image width. See `docs/images/crash.webp`, `rotate.webp`,
+`recall.webp`, `proof.webp`.
 
-**Banners** are 3:1, the sphere holding the logo mark, the wordmark beside it.
+**Header** is 3:1: the glass sphere holding the logo mark, "suture" in Geist Regular beside it with one short line
+in `--sage` under it.
 
 ---
 
@@ -236,7 +249,6 @@ For whoever restyles `web/` later, as plain CSS custom properties:
   --state-intended: #6E746F;  --state-sent: #7FA7D9;  --state-receipt: #D9B26A;
   --state-verified: #8DBF86;  --state-unknown: #6FB7B0;  --state-failed: #E0705C;
   /* type */
-  --font-display: "Instrument Serif", Georgia, serif;
   --font-text: "Geist", system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
   /* shape + motion */
@@ -260,7 +272,7 @@ For whoever restyles `web/` later, as plain CSS custom properties:
 | `--verified #3ecf8e` | `--state-verified` |
 | `--unknown #c084fc` (purple) | `--state-unknown` (mist teal) |
 | `--failed #f26d6d` | `--state-failed` |
-| System font stack | Geist, with Instrument Serif for titles |
+| System font stack | Geist |
 | `.badge.s-unknown` blink | Slow breathe |
 | `.live .dot` ripple | Slow breathe |
 
@@ -273,6 +285,8 @@ For whoever restyles `web/` later, as plain CSS custom properties:
 | One amber accent per view | Several bright colours competing |
 | Hairlines and surface steps for depth | Drop shadows, glows, neon |
 | State name + colour together | Colour as the only signal |
-| Serif for big statements, Geist for everything else | Serif for numbers, UI or small text |
+| Geist for everything, hierarchy by size | A second typeface, serifs, bold headlines |
+| Wide images with one title | Square images, subtitles, captions, stat rows on photos |
+| "suture", lowercase | "Suture", "SUTURE", "Incident Recovery Agent" |
 | Real numbers from the run | Vague claims ("blazing fast", "AI-powered") |
 | Photos of quiet nature with one object | Stock tech imagery, robots, padlocks |
