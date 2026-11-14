@@ -7,6 +7,5 @@ uvicorn>=0.30
 voyageai>=0.3
 pytest>=8.0
 pytest-asyncio>=0.24
-# Model provider: slice C picks ONE and uncomments it.
-# anthropic
-# openai
+# Model provider: slice C picked Anthropic.
+anthropic>=0.40
