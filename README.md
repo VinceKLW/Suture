@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./docs/images/header.webp" alt="suture: finishes the job, even after a crash" width="100%"/>
+  <img src="./docs/images/header-v3.webp" alt="suture: finishes the job, even after a crash" width="100%"/>
 
   [![Python](https://img.shields.io/badge/Python-3.13-3776AB)](https://www.python.org/)
   [![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-47A248)](https://www.mongodb.com/atlas)
@@ -39,7 +39,7 @@ state machine, and a step only counts once an independent check says the effect 
   action id and receipt.
 
 <div align="center">
-  <img src="./docs/images/crash.webp" alt="Crash it. It finishes." width="800"/>
+  <img src="./docs/images/crash-v3.webp" alt="Crash it. It finishes." width="800"/>
 </div>
 
 ---
@@ -88,7 +88,7 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Dead-key check** | Revoke is only verified once the key is gone from the list *and* STS rejects it |
 
 <div align="center">
-  <img src="./docs/images/rotate.webp" alt="Rotates a leaked key." width="800"/>
+  <img src="./docs/images/rotate-v3.webp" alt="Rotates a leaked key." width="800"/>
 </div>
 
 ### 🧠 Fix a broken build
@@ -101,7 +101,7 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Atomic promotion** | `actions.state = verified` and the new `experiences` row commit together, or not at all |
 
 <div align="center">
-  <img src="./docs/images/recall.webp" alt="Remembers what worked." width="800"/>
+  <img src="./docs/images/recall-v3.webp" alt="Remembers what worked." width="800"/>
 </div>
 
 ### 📬 Notify and prove
@@ -113,7 +113,7 @@ result: 3 duplicate side effect(s), 1 live access key nobody is tracking
 | **Proof view** | `/proof/<campaign_id>`: the DAG with each node's state, every transition timestamp and every receipt |
 
 <div align="center">
-  <img src="./docs/images/proof.webp" alt="Proof for every step." width="800"/>
+  <img src="./docs/images/proof-v3.webp" alt="Proof for every step." width="800"/>
 </div>
 
 ---
