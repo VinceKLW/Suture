@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from api import dashboard
+from api import dashboard, proof
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Incident Recovery Agent", lifespan=lifespan)
 app.include_router(dashboard.router)
+app.include_router(proof.router)
 
 
 @app.get("/health")
