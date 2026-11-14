@@ -76,7 +76,15 @@
   @media (max-width: 760px) { .compare { grid-template-columns: minmax(0, 1fr); } .side + .side { border-left: 0; border-top: 1px solid var(--hairline); } }
 
 
-  /* chaos panel */
+  /* chaos: a header button opens the panel as a popover, so the incident list keeps the full column */
+  .chaos-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--sage);
+    background: none; border: 1px solid var(--hairline); border-radius: var(--r-pill); cursor: pointer; transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease); }
+  .chaos-toggle .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--state-failed); opacity: .6; }
+  .chaos-toggle.running .dot { opacity: 1; animation: breathe 2.4s var(--ease) infinite; }
+  .chaos-toggle:hover, .chaos-toggle:focus-visible, .chaos-toggle[aria-expanded="true"] { color: var(--ink); border-color: var(--state-failed); outline: none; }
+  #chaosPanel { position: fixed; z-index: 20; top: 76px; right: 16px; width: 320px; max-height: calc(100vh - 92px); overflow: auto;
+    box-shadow: 0 18px 48px rgba(0,0,0,.45); }
+  @media (max-width: 760px) { #chaosPanel { top: 68px; left: 12px; right: 12px; width: auto; } }
   .chaos { padding: 14px 20px 18px; display: grid; gap: 12px; }
   .chaos-state { color: var(--sage); font-size: 13px; }
   .chaos-state b { color: var(--ink); font-weight: 500; }
@@ -111,20 +119,12 @@
     <a class="brand" href="/"><img src="/static/logo.svg" alt=""><span class="word">suture</span></a>
     <span class="tagline">Finishes the job, even after a crash.</span>
     <span class="spacer"></span>
+    <button class="chaos-toggle" id="chaosToggle" type="button" aria-controls="chaosPanel" aria-expanded="false" hidden title="Demo controls: break a running campaign"><span class="dot"></span>Chaos</button>
     <span class="live" id="live" title="MongoDB change stream to Server-Sent Events"><span class="dot"></span><span id="liveText">Connecting</span></span>
   </div>
 </header>
 
-<main>
-  <div class="col">
-  <section class="glass panel" id="campaignPanel">
-    <div class="glass-content">
-      <div class="panel-head"><div><div class="kicker">Campaigns</div><h2>Incidents</h2></div><span class="count" id="campaignCount"></span></div>
-      <div class="scroll" id="campaigns"><div class="empty"><div class="t">No campaigns yet.</div><div class="s">A new one appears here the moment it's created.</div></div></div>
-    </div>
-  </section>
-
-  <section class="glass panel" id="chaosPanel" hidden>
+  <section class="glass panel" id="chaosPanel" role="dialog" aria-label="Chaos controls" hidden>
     <div class="glass-content">
       <div class="panel-head"><div><div class="kicker">Chaos</div><h2>Break something.</h2></div></div>
       <div class="chaos">
@@ -139,6 +139,16 @@
       </div>
     </div>
   </section>
+
+<main>
+  <div class="col">
+  <section class="glass panel" id="campaignPanel">
+    <div class="glass-content">
+      <div class="panel-head"><div><div class="kicker">Campaigns</div><h2>Incidents</h2></div><span class="count" id="campaignCount"></span></div>
+      <div class="scroll" id="campaigns"><div class="empty"><div class="t">No campaigns yet.</div><div class="s">A new one appears here the moment it's created.</div></div></div>
+    </div>
+  </section>
+
   </div>
 
   <div class="col">
@@ -420,6 +430,7 @@ const cooling = new Set();
 
 function renderChaos() {
   const on = chaos.running;
+  $("chaosToggle").classList.toggle("running", Boolean(on));
   $("chaosState").innerHTML = on
     ? `Running <b>incident</b> as <span class="mono">${esc(chaos.worker)}</span>${chaos.kills ? ` · ${plural(chaos.kills, "worker")} killed` : ""}`
     : "No campaign running.";
@@ -437,8 +448,8 @@ async function pollChaos() {
     if (res.ok) {
       const s = await res.json();
       const enabled = s.enabled && new URLSearchParams(location.search).get("chaos") !== "0";
-      $("chaosPanel").hidden = !enabled;
-      if (!$("chaosPanel").hidden && window.SutureGlass) SutureGlass.scan();
+      $("chaosToggle").hidden = !enabled;
+      if (!enabled) setChaosOpen(false);
       chaos = { ...chaos, ...s, last: s.last || chaos.last };
       renderChaos();
     }
@@ -469,6 +480,16 @@ document.querySelector(".chaos-buttons").addEventListener("click", (ev) => {
   const b = ev.target.closest(".chaos-btn");
   if (b && !b.disabled) fireChaos(b.dataset.chaos);
 });
+function setChaosOpen(open) {
+  $("chaosPanel").hidden = !open;
+  $("chaosToggle").setAttribute("aria-expanded", String(open));
+  if (open && window.SutureGlass) SutureGlass.scan();
+}
+$("chaosToggle").addEventListener("click", (ev) => { ev.stopPropagation(); setChaosOpen($("chaosPanel").hidden); });
+document.addEventListener("click", (ev) => {
+  if (!$("chaosPanel").hidden && !$("chaosPanel").contains(ev.target)) setChaosOpen(false);
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !$("chaosPanel").hidden) { setChaosOpen(false); $("chaosToggle").focus(); } });
 pollChaos();
 setInterval(pollChaos, 1500);
 connect();
