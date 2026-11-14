@@ -48,7 +48,8 @@ async def recall(problem_text: str, k: int = 3) -> list[dict]:
         },
     ]
     db = get_db()
-    return await db.experiences.aggregate(pipeline).to_list(length=k)
+    cursor = await db.experiences.aggregate(pipeline)
+    return await cursor.to_list(length=k)
 
 
 async def create_index_if_missing(name: str = INDEX_NAME) -> None:
