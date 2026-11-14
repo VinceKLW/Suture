@@ -180,8 +180,8 @@ Playbooks are YAML DAGs in [`playbooks/`](playbooks): [`rotate.yaml`](playbooks/
 ## ⚡ Quick Start
 
 ```bash
-git clone https://github.com/VinceKLW/mongodb-hackathon.git
-cd mongodb-hackathon
+git clone https://github.com/VinceKLW/Suture.git
+cd Suture
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
