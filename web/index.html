@@ -267,7 +267,7 @@ function renderDetail() {
       <div>
         <div class="kicker">Action ledger</div>
         <div class="title">${esc(c.playbook || c.kind)} ${badge(c.state)}</div>
-        <div class="id mono">campaign ${esc(c._id)} · <a class="link" href="/proof/${encodeURIComponent(c._id)}">Proof view</a></div>
+        <div class="id mono">campaign ${esc(c._id)} · <a class="link" href="/proof/${encodeURIComponent(c._id)}">Proof view</a> · <a class="link" href="/retro/${encodeURIComponent(c._id)}">Retro</a></div>
       </div>
       <div class="stats small">
         <div class="stat"><b>${list.length}</b><span>actions</span></div>

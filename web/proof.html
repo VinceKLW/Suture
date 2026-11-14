@@ -83,6 +83,7 @@
     <span class="tagline" id="title"></span>
     <span class="spacer"></span>
     <span class="mono" id="cid" style="color: var(--fog)"></span>
+    <a class="link" id="retroLink" href="#">Retro</a>
     <a class="link" href="/">Dashboard</a>
   </div>
 </header>
@@ -263,6 +264,15 @@ async function load() {
   renderVerdict(report); renderStats(report); renderDag(report, current); renderCards(report, current);
 }
 
+// Deep links from the retro (#a-<action_id>): focus that action once, after the first render.
+let deepLinked = false;
+function focusHash() {
+  if (deepLinked || !location.hash.startsWith("#a-")) return;
+  deepLinked = true;
+  const node = document.querySelector(`#dag .node[data-id="${CSS.escape(location.hash.slice(3))}"]`);
+  if (node) node.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 $("dag").addEventListener("click", (ev) => {
   const node = ev.target.closest(".node");
   if (!node) return;
@@ -286,7 +296,8 @@ source.addEventListener("change", (m) => {
   const mine = e.id === campaignId || (e.doc && e.doc.campaign_id === campaignId);
   if (mine && !pending) pending = setTimeout(() => { pending = null; load(); }, 150);
 });
-load();
+$("retroLink").href = `/retro/${encodeURIComponent(campaignId)}`;
+load().then(focusHash);
 </script>
 </body>
 </html>
