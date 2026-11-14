@@ -4,149 +4,202 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Incident Recovery Agent</title>
-<!-- Owner: slice D. Vanilla HTML + fetch + EventSource, no build step. -->
+<!-- Owner: slice D. Vanilla HTML + fetch + EventSource, no build step. Styled to DESIGN.md. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230D1210'/%3E%3Cg fill='none' stroke='%23F2F0EA' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='46' cy='50' r='26'/%3E%3Cpolyline points='6,50 43,50'/%3E%3Cpolyline points='49,50 72,50 76.5,54.5 87,44'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&family=Instrument+Serif&display=swap">
 <style>
   :root {
-    --bg: #0b0e14; --panel: #131824; --panel-2: #1a2030; --line: #252d40;
-    --text: #e6e9f0; --muted: #8b93a7; --accent: #6ea8fe;
-    --intended: #7c869c; --sent: #5aa2ff; --receipt: #f2b84b;
-    --verified: #3ecf8e; --unknown: #c084fc; --failed: #f26d6d;
+    /* DESIGN.md §10 */
+    --night: #060807;  --forest: #0D1210;  --moss: #141B18;
+    --hairline: rgba(255,255,255,.08);  --hairline-strong: rgba(255,255,255,.14);
+    --ink: #F2F0EA;  --sage: #969A94;  --fog: #62665F;
+    --amber: #E8A252;  --amber-soft: rgba(232,162,82,.12);  --dusk: #7FA7D9;
+    --state-intended: #6E746F;  --state-sent: #7FA7D9;  --state-receipt: #D9B26A;
+    --state-verified: #8DBF86;  --state-unknown: #6FB7B0;  --state-failed: #E0705C;
+    --font-display: "Instrument Serif", Georgia, serif;
+    --font-text: "Geist", system-ui, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, monospace;
+    --r-sm: 6px;  --r-md: 12px;  --r-pill: 999px;
+    --ease: cubic-bezier(.2,.7,.2,1);  --dur: 300ms;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  header { display: flex; align-items: center; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
-  header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; }
-  header .sub { color: var(--muted); font-size: 12px; }
+  body { margin: 0; background: var(--night); color: var(--ink); font: 400 15px/1.55 var(--font-text); -webkit-font-smoothing: antialiased; }
+  .mono { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.45; }
+  .label { font-size: 11px; line-height: 1.2; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--fog); }
+  :focus-visible { outline: 1px solid var(--dusk); outline-offset: 2px; }
+
+  /* one colour per state, always shown with the state's name */
+  .s-intended { --c: var(--state-intended); } .s-sent { --c: var(--state-sent); } .s-receipt { --c: var(--state-receipt); }
+  .s-verified { --c: var(--state-verified); } .s-unknown { --c: var(--state-unknown); } .s-failed { --c: var(--state-failed); }
+  .s-running { --c: var(--dusk); } .s-succeeded { --c: var(--state-verified); } .s-paused { --c: var(--state-receipt); }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--hairline); background: var(--night); position: sticky; top: 0; z-index: 5; }
+  header svg { width: 32px; height: 32px; flex: none; color: var(--ink); }
+  header .wordmark { font-size: 16px; line-height: 1.3; white-space: nowrap; }
+  header .sub { color: var(--sage); font-size: 13px; line-height: 1.45; }
   .spacer { flex: 1; }
-  .live { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--muted); }
-  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--failed); }
-  .live.on { color: var(--text); }
-  .live.on .dot { background: var(--verified); box-shadow: 0 0 0 0 rgba(62,207,142,.6); animation: pulse 1.8s infinite; }
-  @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(62,207,142,0); } 100% { box-shadow: 0 0 0 0 rgba(62,207,142,0); } }
+  .live { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid var(--hairline); border-radius: var(--r-pill); font-size: 13px; color: var(--sage); white-space: nowrap; }
+  .live .detail { margin-left: -8px; white-space: pre; }
+  .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fog); }
+  .live.on .dot { background: var(--state-verified); animation: breathe-half 2.4s var(--ease) infinite alternate; }
+  @keyframes breathe-half { to { opacity: .5; } }
+  @keyframes breathe { to { opacity: .55; } }
 
-  main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 16px; padding: 16px 22px 28px; align-items: start; }
-  @media (max-width: 1150px) { main { grid-template-columns: 260px minmax(0, 1fr); } #feedPanel { grid-column: 1 / -1; } }
-  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 24px; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-  .panel > h2 { margin: 0; padding: 12px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .9px; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
-  .panel > h2 .count { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; }
-  .empty { padding: 22px 14px; color: var(--muted); font-size: 13px; }
-
-  .campaign { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); color: inherit; font: inherit; padding: 11px 14px; cursor: pointer; }
-  .campaign:last-child { border-bottom: 0; }
-  .campaign:hover { background: var(--panel-2); }
-  .campaign.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
-  .campaign .top { display: flex; align-items: center; gap: 8px; }
-  .campaign .name { font-weight: 600; }
-  .campaign .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  .bar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: var(--line); margin-top: 8px; }
-  .bar i { display: block; height: 100%; }
-
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .3px; border: 1px solid currentColor; white-space: nowrap; }
-  .s-intended { color: var(--intended); } .s-sent { color: var(--sent); } .s-receipt { color: var(--receipt); }
-  .s-verified { color: var(--verified); } .s-unknown { color: var(--unknown); } .s-failed { color: var(--failed); }
-  .s-running { color: var(--sent); } .s-succeeded { color: var(--verified); } .s-paused { color: var(--receipt); }
-  .bg-intended { background: var(--intended); } .bg-sent { background: var(--sent); } .bg-receipt { background: var(--receipt); }
-  .bg-verified { background: var(--verified); } .bg-unknown { background: var(--unknown); } .bg-failed { background: var(--failed); }
-  .badge.s-unknown { animation: blink 1s ease-in-out infinite; }
-  @keyframes blink { 50% { opacity: .45; } }
-
-  #detailHead { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-  #detailHead .title { font-size: 16px; font-weight: 650; }
-  #detailHead .id { color: var(--muted); font-size: 12px; }
-  .stats { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; min-width: 86px; }
-  .stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
-  .stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
-
-  .action { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
-  .action:last-child { border-bottom: 0; }
-  .action.flash { animation: flash 1.6s ease-out; }
-  @keyframes flash { 0% { background: rgba(110,168,254,.22); } 100% { background: transparent; } }
-  .action .op { font-weight: 600; }
-  .action .adapter { color: var(--muted); font-size: 12px; margin-left: 6px; }
-  .action .target { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .action .ids { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .trail { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-  .trail .step { font-size: 11px; padding: 1px 7px; border-radius: 5px; border: 1px solid currentColor; opacity: .75; }
-  .trail .step.now { opacity: 1; font-weight: 700; background: rgba(255,255,255,.05); }
-  .trail .arrow { color: var(--muted); font-size: 11px; }
-  .tag { font-size: 10.5px; padding: 1px 7px; border-radius: 5px; background: rgba(192,132,252,.15); color: var(--unknown); border: 1px solid rgba(192,132,252,.4); }
-  .tag.adapt { background: rgba(90,162,255,.13); color: var(--sent); border-color: rgba(90,162,255,.45); }
-
-  a.link { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
-  a.link:hover { text-decoration: underline; }
+  main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 16px; padding: 16px 24px 48px; align-items: start; }
+  @media (max-width: 1150px) { main { grid-template-columns: 264px minmax(0, 1fr); } #feedPanel { grid-column: 1 / -1; } }
+  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 32px; } header { padding: 12px 16px; } header .sub, .live .detail { display: none; } }
   .stack { display: grid; gap: 16px; min-width: 0; }
-  .btn { margin-left: auto; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
-  .btn:hover { border-color: var(--accent); }
-  .btn:disabled { opacity: .6; cursor: default; }
+  .panel { background: var(--forest); border: 1px solid var(--hairline); border-radius: var(--r-md); overflow: hidden; min-width: 0; }
+  .panel > .phead { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
+  .panel > .phead h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; }
+  .panel > .phead .meta { margin-left: auto; color: var(--fog); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .note { padding: 16px 20px; color: var(--sage); font-size: 13px; line-height: 1.45; }
+  .empty { padding: 48px 24px; }
+  .empty .title { font: 400 40px/1.05 var(--font-display); color: var(--sage); }
+  .empty .line { margin-top: 12px; color: var(--sage); font-size: 13px; line-height: 1.45; }
+
+  .badge { display: inline-block; padding: 1px 8px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.5; font-weight: 500; white-space: nowrap;
+    color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); background: color-mix(in srgb, var(--c) 8%, transparent); }
+  .badge.active { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, transparent); background: var(--amber-soft); }
+  .badge.s-unknown { animation: breathe 2.4s var(--ease) infinite alternate; }
+  .badge.changed { animation: fade var(--dur) var(--ease); }
+  @keyframes fade { from { opacity: 0; } }
+  .tag { display: inline-block; padding: 0 8px; border-radius: var(--r-sm); font: 400 12px/1.6 var(--font-text); color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); white-space: nowrap; }
+  .tag.recovered { --c: var(--dusk); } .tag.adapted { --c: var(--state-unknown); }
+
+  .campaign { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--hairline); border-left: 2px solid transparent; color: inherit; font: inherit; padding: 12px 20px 12px 18px; cursor: pointer; transition: background var(--dur) var(--ease); }
+  .campaign:last-child { border-bottom: 0; }
+  .campaign:hover, .campaign.selected { background: var(--moss); }
+  .campaign.selected { border-left-color: var(--sage); }
+  .campaign .top { display: flex; align-items: center; gap: 8px; }
+  .campaign .name { font-weight: 500; }
+  .campaign .cap { color: var(--fog); font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .bar { display: flex; gap: 2px; height: 2px; margin-top: 8px; }
+  .bar i { display: block; height: 100%; background: var(--c); }
+
+  .band { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; padding: 20px; border-bottom: 1px solid var(--hairline); }
+  .band .who { min-width: 0; margin-right: auto; }
+  .band .name { display: flex; align-items: center; gap: 8px; font-size: 20px; line-height: 1.3; font-weight: 500; }
+  .band .cid { color: var(--fog); margin-top: 4px; overflow-wrap: anywhere; }
+  .band .links { margin-top: 8px; font-size: 13px; }
+  a.link { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--fog); text-underline-offset: 3px; transition: text-decoration-color var(--dur) var(--ease); }
+  a.link:hover { text-decoration-color: var(--amber); }
+  .stats { display: flex; justify-content: flex-end; margin-left: auto; }
+  .stat { padding: 0 16px; border-left: 1px solid var(--hairline); text-align: right; }
+  .stat:first-child { border-left: 0; padding-left: 0; } .stat:last-child { padding-right: 0; }
+  .stat b { display: block; font: 400 32px/1 var(--font-text); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .stat .label { display: block; margin-top: 8px; }
+  @media (max-width: 760px) {
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 0; width: 100%; margin-left: 0; }
+    .stat, .stat:first-child, .stat:last-child { text-align: left; padding: 0 12px; }
+    .stat:nth-child(3n + 1) { border-left: 0; padding-left: 0; }
+  }
+
+  .action { padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
+  .action:last-child { border-bottom: 0; }
+  .action.new { animation: rise var(--dur) var(--ease), lit 1.2s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+  @keyframes lit { from { background: var(--amber-soft); } }
+  .action .ahead { display: flex; align-items: baseline; gap: 8px; }
+  .action .op { font-weight: 500; }
+  .action .adapter { color: var(--fog); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .action .ahead .badge { margin-left: auto; }
+  .action .target { color: var(--sage); font-size: 13px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .action .ids { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--fog); }
+
+  /* thread timeline: one line, a dot per state; a crash is a gap, then the same line resumes */
+  .thread { display: flex; margin: 16px 0 12px; }
+  .tstep { position: relative; flex: 1 1 0; min-width: 0; max-width: 112px; padding-top: 16px; }
+  .tstep .dot { position: absolute; top: 0; left: 0; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--hairline-strong); }
+  .tstep.reached .dot { background: var(--c); border-color: var(--c); }
+  .tstep.current .dot { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
+  .tstep.current.s-unknown .dot { animation: breathe 2.4s var(--ease) infinite alternate; }
+  .tstep .seg, .tstep .seg::after { position: absolute; top: 4px; height: 1px; background: var(--hairline); }
+  .tstep .seg { left: calc(8px - 100%); width: calc(100% - 8px); transform-origin: left; }
+  .tstep.reached .seg { background: var(--hairline-strong); }
+  .tstep.gap .seg { width: calc((100% - 8px) * .4); }
+  .tstep.gap .seg::after { content: ""; top: 0; left: 150%; width: 100%; background: var(--hairline-strong); }
+  .tstep.draw .seg { animation: draw var(--dur) var(--ease); }
+  @keyframes draw { from { transform: scaleX(0); } }
+  .tstep .tname { display: block; font-size: 12px; line-height: 1.45; color: var(--fog); }
+  .tstep.reached .tname { color: var(--c); }
+  .tstep .tts { display: block; color: var(--fog); font-size: 11.5px; overflow: hidden; text-overflow: clip; white-space: nowrap; }
+
+  .btn { margin-left: auto; font: 400 13px/1.45 var(--font-text); color: var(--ink); background: var(--moss); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 8px 12px; cursor: pointer; transition: border-color var(--dur) var(--ease); }
+  .btn:hover, .btn:focus-visible { border-color: var(--amber); outline: 0; }
+  .btn:disabled { color: var(--fog); cursor: default; }
   .compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  @media (max-width: 760px) { .compare { grid-template-columns: minmax(0, 1fr); } }
-  .side { min-width: 0; padding-bottom: 4px; }
-  .side + .side { border-left: 1px solid var(--line); }
-  @media (max-width: 760px) { .side + .side { border-left: 0; border-top: 1px solid var(--line); } }
-  .side h3 { margin: 0; padding: 10px 14px 6px; font-size: 13px; }
-  .side h3 .note { margin-left: 6px; font-weight: 400; }
-  .side .sub { padding: 0 14px 8px; color: var(--muted); font-size: 12px; }
-  .effect { display: flex; align-items: baseline; gap: 8px; padding: 5px 14px; font-size: 12.5px; }
+  .side { min-width: 0; padding: 16px 20px 20px; }
+  .side + .side { border-left: 1px solid var(--hairline); }
+  @media (max-width: 760px) { .compare { grid-template-columns: minmax(0, 1fr); } .side + .side { border-left: 0; border-top: 1px solid var(--hairline); } }
+  .side .sub { margin: 8px 0 12px; color: var(--sage); font-size: 13px; line-height: 1.45; }
+  .effect { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; line-height: 1.45; color: var(--sage); }
   .effect .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .effect .n { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .effect.dup .n, .effect.dup .name { color: var(--failed); }
-  .effect .note { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
-  .result { margin: 8px 14px 10px; padding: 8px 11px; border-radius: 8px; font-size: 12.5px; font-weight: 600; }
-  .result.bad { background: rgba(242,109,109,.1); color: var(--failed); border: 1px solid rgba(242,109,109,.4); }
-  .result.ok { background: rgba(62,207,142,.1); color: var(--verified); border: 1px solid rgba(62,207,142,.4); }
-  .result.wait { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+  .effect .n { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .effect.dup, .effect.dup .n { color: var(--state-failed); }
+  .verdict { margin-top: 12px; padding: 8px 12px; border-left: 2px solid var(--c, var(--fog)); background: var(--moss); border-radius: 0 var(--r-sm) var(--r-sm) 0; font-size: 13px; line-height: 1.45; color: var(--ink); }
+
   #feed { max-height: 70vh; overflow: auto; }
-  .event { padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
-  .event .time { color: var(--muted); font-variant-numeric: tabular-nums; }
-  .event .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .event .who { grid-column: 2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event { padding: 8px 20px; border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 12px; font-size: 13px; line-height: 1.45; }
+  .event:last-child { border-bottom: 0; }
+  .event .time { color: var(--fog); }
+  .event .what { color: var(--sage); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event .who { grid-column: 2; color: var(--fog); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 <header>
+  <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="46" cy="50" r="26"/><polyline points="6,50 43,50"/><polyline points="49,50 72,50 76.5,54.5 87,44"/>
+  </svg>
   <div>
-    <h1>Incident Recovery Agent</h1>
+    <div class="wordmark">Incident Recovery Agent</div>
     <div class="sub">Each action moves intended → sent → receipt → verified. It reaches verified only after verify() reads the effect back from the external system.</div>
   </div>
   <div class="spacer"></div>
-  <div class="live" id="live" title="MongoDB change stream → Server-Sent Events"><span class="dot"></span><span id="liveText">connecting…</span></div>
+  <div class="live" id="live" title="MongoDB change stream → Server-Sent Events"><span class="dot"></span><span id="liveText">Connecting</span><span class="detail" id="liveDetail"></span></div>
 </header>
 
 <main>
   <section class="panel" id="campaignPanel">
-    <h2>Campaigns <span class="count" id="campaignCount"></span></h2>
-    <div id="campaigns"><div class="empty">No campaigns yet. A new one appears here as soon as it is created.</div></div>
+    <div class="phead"><h2>Campaigns</h2><span class="meta" id="campaignCount"></span></div>
+    <div id="campaigns"><div class="note">None yet.</div></div>
   </section>
 
   <div class="stack">
     <section class="panel" id="detailPanel">
-      <h2>Action ledger</h2>
-      <div id="detail"><div class="empty">Select a campaign to see its actions.</div></div>
+      <div class="phead"><h2>Action ledger</h2></div>
+      <div id="detail"><div class="empty"><div class="title">No campaigns yet.</div><div class="line">A new one appears here as soon as it is created.</div></div></div>
     </section>
 
     <section class="panel" id="comparePanel">
-      <h2>Crash comparison: naive retry and ledger <button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></h2>
+      <div class="phead"><h2>Crash comparison</h2><button class="btn" id="naiveBtn" type="button">Replay without the ledger</button></div>
       <div class="compare">
-        <div class="side" id="naiveSide"><h3>Naive retry</h3><div class="empty">Not run yet. The baseline keeps no record of what it already did, so after a crash it restarts from step one.</div></div>
-        <div class="side" id="ledgerSide"><h3>Ledger</h3><div class="empty">Select a campaign.</div></div>
+        <div class="side" id="naiveSide"><div class="label">Naive retry · no ledger</div><div class="sub">Not run yet. The baseline keeps no record of what it already did, so after a crash it restarts from step one.</div></div>
+        <div class="side" id="ledgerSide"><div class="label">Ledger · this campaign</div><div class="sub">Select a campaign.</div></div>
       </div>
     </section>
   </div>
 
   <section class="panel" id="feedPanel">
-    <h2>Live changes <span class="count" id="feedCount">0 events</span></h2>
-    <div id="feed"><div class="empty">Waiting for the first write…</div></div>
+    <div class="phead"><h2>Live changes</h2><span class="meta" id="feedCount">0 events</span></div>
+    <div id="feed"><div class="note">No writes yet. Changes to campaigns and actions appear here as they happen.</div></div>
   </section>
 </main>
 
 <script>
 const STATES = ["intended", "sent", "receipt", "verified", "unknown", "failed"];
+const IN_FLIGHT = ["sent", "receipt", "unknown"];
+// the states an action still has ahead of it, drawn as empty dots on its thread
+const AHEAD = { intended: ["sent", "receipt", "verified"], sent: ["receipt", "verified"], receipt: ["verified"], unknown: ["verified"] };
 const campaigns = new Map();       // id -> campaign doc (with counts)
 const actions = new Map();         // campaign id -> Map(action id -> action doc)
-const flashedAt = new Map();       // action id -> ms timestamp of last live change
+const changedAt = new Map();       // action id -> ms timestamp of last live state change
+const bornAt = new Map();          // action id -> ms timestamp it first arrived live
 const feed = [];
 let selected = null;
 let eventCount = 0;
@@ -154,9 +207,11 @@ let eventCount = 0;
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const cls = (state) => (STATES.includes(state) || ["running", "succeeded", "paused"].includes(state) ? state : "intended");
-const badge = (state) => `<span class="badge s-${cls(state)}">${esc(state || "?")}</span>`;
+const badge = (state, extra = "") => `<span class="badge s-${cls(state)} ${extra}">${esc(state || "?")}</span>`;
 const clock = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) + "." + String(new Date(iso).getMilliseconds()).padStart(3, "0") : "");
 const short = (id) => (id ? String(id).slice(-8) : "");
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const recoveryReason = (reason) => /reconcil|lookup|recover/i.test(reason || "");
 
 function stepLabel(a) {
   return a.step_id || a.step || (a.params && (a.params.step_id || a.params.step)) || a.operation || "action";
@@ -177,7 +232,7 @@ function countsOf(campaignId) {
   return counts;
 }
 function wasRecovered(a) {   // resolved after a crash: the engine asked lookup() instead of re-sending
-  return (a.transitions || []).some((t) => /reconcil|lookup|recover/i.test(t.reason || ""));
+  return (a.transitions || []).some((t) => recoveryReason(t.reason));
 }
 function wasAdapted(a) {     // verify() could not tell; a proposed mapping was applied and verify() re-run
   return Boolean(a.adaptation) || (a.transitions || []).some((t) => /adaptation/i.test(t.reason || ""));
@@ -190,13 +245,32 @@ function renderCampaigns() {
   $("campaigns").innerHTML = list.map((c) => {
     const counts = countsOf(c._id);
     const total = Object.values(counts).reduce((n, v) => n + v, 0);
-    const bar = STATES.filter((s) => counts[s]).map((s) => `<i class="bg-${s}" style="width:${(100 * counts[s]) / total}%" title="${s}: ${counts[s]}"></i>`).join("");
+    const bar = STATES.filter((s) => counts[s]).map((s) => `<i class="s-${s}" style="width:${(100 * counts[s]) / total}%" title="${s}: ${counts[s]}"></i>`).join("");
     return `<button class="campaign ${c._id === selected ? "selected" : ""}" data-id="${esc(c._id)}">
       <div class="top"><span class="name">${esc(c.playbook || c.kind)}</span>${badge(c.state)}</div>
-      <div class="meta">${esc(c.kind)} · ${total} action${total === 1 ? "" : "s"} · ${esc(clock(c.created_at).slice(0, 8))}</div>
+      <div class="cap">${esc(c.kind)} · ${plural(total, "action")} · ${esc(clock(c.created_at).slice(0, 8))}</div>
       <div class="bar">${bar}</div>
     </button>`;
   }).join("");
+}
+
+// One dot per state the action has been in, then empty dots for the states still ahead.
+function thread(a, justChanged) {
+  const seen = a.transitions || [];
+  const steps = [{ state: seen.length ? seen[0].from : a.state, ts: a.created_at, reached: true }];
+  for (const t of seen) steps.push({ state: t.to, ts: t.ts, reason: t.reason, reached: true, gap: recoveryReason(t.reason) });
+  const lastReached = steps.length - 1;
+  for (const s of AHEAD[a.state] || []) steps.push({ state: s, reached: false });
+  return `<div class="thread">${steps.map((s, i) => {
+    const classes = ["tstep", `s-${cls(s.state)}`];
+    if (s.reached) classes.push("reached");
+    if (i === lastReached && IN_FLIGHT.includes(a.state)) classes.push("current");
+    if (s.gap) classes.push("gap");
+    if (i === lastReached && justChanged) classes.push("draw");
+    const tip = s.reached && i ? `${clock(s.ts)}${s.reason ? " · " + s.reason : ""}` : "";
+    return `<div class="${classes.join(" ")}" title="${esc(tip)}">${i ? `<span class="seg"></span>` : ""}<span class="dot"></span>
+      <span class="tname">${esc(s.state)}</span><span class="tts mono">${s.reached ? esc(clock(s.ts).slice(0, 8)) : "&nbsp;"}</span></div>`;
+  }).join("")}</div>`;
 }
 
 function renderDetail() {
@@ -204,42 +278,33 @@ function renderDetail() {
   if (!c) return;
   const list = [...(actions.get(selected) || new Map()).values()].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a._id).localeCompare(String(b._id)));
   const counts = countsOf(selected);
-  const recovered = list.filter(wasRecovered).length;
   const now = Date.now();
   const rows = list.map((a) => {
-    const trail = [];
+    const justChanged = now - (changedAt.get(a._id) || 0) < 500;
+    const isNew = now - (bornAt.get(a._id) || 0) < 1300;
     const seen = a.transitions || [];
-    const path = seen.length ? [seen[0].from, ...seen.map((t) => t.to)] : [a.state];
-    path.forEach((s, i) => {
-      if (i) trail.push(`<span class="arrow">→</span>`);
-      trail.push(`<span class="step s-${cls(s)} ${i === path.length - 1 ? "now" : ""}" title="${esc(i ? clock(seen[i - 1].ts) + (seen[i - 1].reason ? " · " + seen[i - 1].reason : "") : "")}">${esc(s)}</span>`);
-    });
-    const flash = now - (flashedAt.get(a._id) || 0) < 1500 ? "flash" : "";
     const last = seen.length ? seen[seen.length - 1] : null;
-    return `<div class="action ${flash}">
-      <div><span class="op">${esc(stepLabel(a))}</span><span class="adapter mono">${esc(a.adapter)}.${esc(a.operation)}</span>
-        <div class="target">${esc(targetLabel(a))}</div></div>
-      <div>${badge(a.state)}</div>
-      <div class="trail">${trail.join("")}${wasRecovered(a) ? ` <span class="tag">recovered, no re-send</span>` : ""}${wasAdapted(a) ? ` <span class="tag adapt">adapted, then re-verified</span>` : ""}</div>
-      <div class="ids mono"><span>action ${esc(a._id)}</span><span>${(a.attempts || []).length} attempt${(a.attempts || []).length === 1 ? "" : "s"}</span>${last ? `<span>last ${esc(clock(last.ts))}${last.reason ? " · " + esc(last.reason) : ""}</span>` : ""}</div>
+    const attempts = (a.attempts || []).length;
+    return `<div class="action ${isNew ? "new" : ""}">
+      <div class="ahead"><span class="op">${esc(stepLabel(a))}</span><span class="adapter mono">${esc(a.adapter)}.${esc(a.operation)}</span>
+        ${badge(a.state, `${IN_FLIGHT.includes(a.state) ? "active" : ""} ${justChanged ? "changed" : ""}`)}</div>
+      <div class="target">${esc(targetLabel(a))}</div>
+      ${thread(a, justChanged)}
+      <div class="ids mono"><span>action ${esc(a._id)}</span><span>${plural(attempts, "attempt")}</span>${last && last.reason ? `<span>${esc(last.reason)}</span>` : ""}
+        ${wasRecovered(a) ? `<span class="tag recovered">recovered, no re-send</span>` : ""}${wasAdapted(a) ? `<span class="tag adapted">adapted, then re-verified</span>` : ""}</div>
     </div>`;
   }).join("");
+  const stats = [[list.length, "Actions"], [counts.verified || 0, "Verified"], [counts.unknown || 0, "Unknown"], [counts.failed || 0, "Failed"], [list.filter(wasRecovered).length, "Recovered"]];
   $("detail").innerHTML = `
-    <div id="detailHead">
-      <span class="title">${esc(c.playbook || c.kind)}</span>${badge(c.state)}
-      <span class="id mono">campaign ${esc(c._id)}</span>
-      <span class="spacer"></span>
-      <span id="detailLinks"></span>
+    <div class="band">
+      <div class="who">
+        <div class="name">${esc(c.playbook || c.kind)} ${badge(c.state)}</div>
+        <div class="cid mono">campaign ${esc(c._id)}</div>
+        <div class="links"><a class="link" href="/proof/${encodeURIComponent(c._id)}">Proof view</a></div>
+      </div>
+      <div class="stats">${stats.map(([n, label]) => `<div class="stat"><b>${n}</b><span class="label">${label}</span></div>`).join("")}</div>
     </div>
-    <div class="stats">
-      <div class="stat"><b>${list.length}</b><span>actions</span></div>
-      <div class="stat"><b class="s-verified">${counts.verified || 0}</b><span>verified</span></div>
-      <div class="stat"><b class="s-unknown">${counts.unknown || 0}</b><span>unknown</span></div>
-      <div class="stat"><b class="s-failed">${counts.failed || 0}</b><span>failed</span></div>
-      <div class="stat"><b>${recovered}</b><span>recovered</span></div>
-    </div>
-    ${rows || `<div class="empty">This campaign has no actions yet.</div>`}`;
-  if (typeof renderDetailLinks === "function") renderDetailLinks(c);
+    ${rows || `<div class="note">This campaign has no actions yet.</div>`}`;
   renderLedgerSide(list);
 }
 
@@ -247,37 +312,37 @@ function renderDetail() {
 let naive = null;
 
 function renderLedgerSide(list) {
+  const head = `<div class="label">Ledger · this campaign</div>`;
+  if (!list.length) { $("ledgerSide").innerHTML = `${head}<div class="sub">This campaign has no actions yet.</div>`; return; }
   const done = list.filter((a) => a.state !== "intended");
-  if (!list.length) { $("ledgerSide").innerHTML = `<h3>Ledger</h3><div class="empty">This campaign has no actions yet.</div>`; return; }
   const sends = (a) => (a.transitions || []).filter((t) => t.from === "intended" && t.to === "sent").length;
   const extra = done.reduce((n, a) => n + Math.max(sends(a) - 1, 0), 0);
   const recovered = done.filter(wasRecovered).length;
   const open = list.filter((a) => !["verified", "failed"].includes(a.state)).length;
   const rows = done.map((a) => `<div class="effect ${sends(a) > 1 ? "dup" : ""}">
-      <span class="name">${esc(stepLabel(a))}${targetLabel(a) ? ` <span class="note">${esc(targetLabel(a))}</span>` : ""}</span>
-      ${wasRecovered(a) ? `<span class="tag">recovered</span>` : ""}
-      <span class="n">×${sends(a)}</span>
+      <span class="name">${esc(stepLabel(a))}${a.item_key ? `:${esc(a.item_key)}` : ""}</span>
+      ${wasRecovered(a) ? `<span class="tag recovered">recovered</span>` : ""}
+      <span class="n">x${sends(a)}</span>
     </div>`).join("");
   const verdict = extra
-    ? `<div class="result bad">${extra} action(s) were sent more than once</div>`
+    ? `<div class="verdict s-failed">${plural(extra, "action")} sent more than once</div>`
     : open
-      ? `<div class="result wait">0 duplicate sends so far · ${open} action(s) still in progress</div>`
-      : `<div class="result ok">0 duplicate sends${recovered ? ` · ${recovered} crash${recovered === 1 ? "" : "es"} resolved by lookup()` : ""}</div>`;
-  $("ledgerSide").innerHTML = `<h3>Ledger <span class="note">this campaign</span></h3>
+      ? `<div class="verdict s-sent">0 duplicate sends so far · ${plural(open, "action")} still in progress</div>`
+      : `<div class="verdict s-verified">0 duplicate sends${recovered ? ` · ${recovered} crash${recovered === 1 ? "" : "es"} resolved by lookup()` : ""}</div>`;
+  $("ledgerSide").innerHTML = `${head}
     <div class="sub">Each action is sent once, stamped with its action id. Counts are the intended → sent transitions recorded in MongoDB.</div>
-    ${rows || `<div class="empty">Nothing sent yet.</div>`}${verdict}`;
+    ${rows || `<div class="sub">Nothing sent yet.</div>`}${verdict}`;
 }
 
 function renderNaiveSide() {
   if (!naive) return;
   const rows = naive.effects.map((e) => `<div class="effect ${e.duplicates ? "dup" : ""}">
       <span class="name">${esc(e.id)}</span>
-      ${e.duplicates ? `<span class="note">duplicate</span>` : ""}
-      <span class="n">×${e.count}</span>
+      <span class="n">x${e.count}</span>
     </div>`).join("");
-  $("naiveSide").innerHTML = `<h3>Naive retry <span class="note">no ledger</span></h3>
+  $("naiveSide").innerHTML = `<div class="label">Naive retry · no ledger</div>
     <div class="sub">Crashed after <span class="mono">${esc(naive.crash_after || "nothing")}</span>, then restarted from step one. ${naive.total_calls} external calls; a correct run makes ${naive.expected_calls}.</div>
-    ${rows}<div class="result ${naive.duplicates ? "bad" : "ok"}">${esc(naive.verdict)}</div>`;
+    ${rows}<div class="verdict ${naive.duplicates ? "s-failed" : "s-verified"}">${esc(naive.verdict)}</div>`;
 }
 
 async function runNaive() {
@@ -290,7 +355,7 @@ async function runNaive() {
 }
 
 function renderFeed() {
-  $("feedCount").textContent = `${eventCount} event${eventCount === 1 ? "" : "s"}`;
+  $("feedCount").textContent = plural(eventCount, "event");
   if (!feed.length) return;
   $("feed").innerHTML = feed.map((e) => `<div class="event">
       <span class="time mono">${esc(clock(e.at))}</span>
@@ -299,15 +364,11 @@ function renderFeed() {
     </div>`).join("");
 }
 
-function renderDetailLinks(c) {
-  $("detailLinks").innerHTML = `<a class="link" href="/proof/${encodeURIComponent(c._id)}">Proof view →</a>`;
-}
-
 async function select(id) {
   selected = id;
   history.replaceState(null, "", `#${id}`);
   renderCampaigns();
-  $("detail").innerHTML = `<div class="empty">Loading…</div>`;
+  $("detail").innerHTML = `<div class="note">Loading.</div>`;
   await loadCampaign(id);
 }
 
@@ -339,7 +400,7 @@ function onChange(e) {
   if (e.collection === "campaigns" && doc) {
     const isNew = !campaigns.has(doc._id);
     campaigns.set(doc._id, { ...(campaigns.get(doc._id) || {}), ...doc });
-    feed.unshift({ at: e.at, state: doc.state, what: `campaign ${e.op}: ${doc.playbook || doc.kind}`, who: doc._id });
+    feed.unshift({ at: e.at, state: doc.state, what: `Campaign ${e.op === "insert" ? "opened" : "updated"}: ${doc.playbook || doc.kind}`, who: doc._id });
     if (isNew) select(doc._id);            // follow the newest campaign, like a live demo should
     else if (doc._id === selected) renderDetail();
   } else if (e.collection === "actions" && doc) {
@@ -347,7 +408,8 @@ function onChange(e) {
     if (!actions.has(cid)) actions.set(cid, new Map());
     const known = actions.get(cid).get(doc._id);
     actions.get(cid).set(doc._id, doc);
-    flashedAt.set(doc._id, Date.now());
+    if (!known) bornAt.set(doc._id, Date.now());
+    if (known && known.state !== doc.state) changedAt.set(doc._id, Date.now());
     const moved = known && known.state !== doc.state ? `${known.state} → ${doc.state}` : e.op === "insert" ? "planned" : `updated ${e.changed.join(", ")}`;
     feed.unshift({ at: e.at, state: doc.state, what: `${stepLabel(doc)}: ${moved}`, who: `${doc.adapter} · …${short(doc._id)}` });
     if (cid === selected) renderDetail();
@@ -358,20 +420,21 @@ function onChange(e) {
   renderFeed();
 }
 
-function setLive(on, text) {
+function setLive(on, text, detail = "") {
   $("live").classList.toggle("on", on);
   $("liveText").textContent = text;
+  $("liveDetail").textContent = detail;   // hidden on narrow screens
 }
 
 function connect() {
   const source = new EventSource("/api/stream");
   source.addEventListener("status", (m) => {
     const s = JSON.parse(m.data);
-    setLive(s.connected, s.connected ? "live · change stream" : "change stream reconnecting…");
+    setLive(s.connected, s.connected ? "Live" : "Reconnecting", " · change stream");
   });
   source.addEventListener("change", (m) => onChange(JSON.parse(m.data)));
   source.onopen = () => loadAll();         // also re-syncs after a dropped connection
-  source.onerror = () => setLive(false, "reconnecting…");
+  source.onerror = () => setLive(false, "Reconnecting");
 }
 
 $("naiveBtn").addEventListener("click", runNaive);
