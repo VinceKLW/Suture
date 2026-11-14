@@ -1,6 +1,6 @@
 # Fix playbook (slice C). See PRD §1.5 for format and §5 for semantics.
-# The DAG is executed by engine/playbook.py (slice A). Until that runner lands,
-# tests/test_fix.py exercises these steps directly against the adapters.
+# Executed by engine/playbook.py. The `experiences` adapter and the `model_mapping`
+# on_unknown strategy are registered by experiences/engine_hooks.py.
 name: fix
 steps:
   - id: recall_experience
@@ -43,6 +43,7 @@ steps:
     depends_on: [wait_ci]           # invokes model/mapping.propose_mapping and
     inputs:                         # re-runs verify with expected_field set
       repo: "${campaign.trigger.repo}"
+      head_sha: "${open_pr.result.head_sha}"
     on_unknown:
       strategy: model_mapping
       canonical_success: success
