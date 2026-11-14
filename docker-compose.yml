@@ -1,0 +1,9 @@
+# Dev only — the demo runs on Atlas.
+services:
+  mongo:
+    # Single-node replica set with change streams, transactions and $vectorSearch
+    image: mongodb/mongodb-atlas-local:latest
+    ports: ["27017:27017"]
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports: ["1025:1025", "8025:8025"]
