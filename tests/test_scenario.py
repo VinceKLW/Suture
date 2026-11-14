@@ -1,73 +1,35 @@
-"""Slice D. The demo scenario: the stand-in planner (pure) and one full
-crash-and-recover run against Atlas (skipped without MONGODB_URI)."""
-import os
+"""Slice D. The demo scenario: playbook composition (pure) and one full
+crash-and-recover run on the real engine (skipped without MONGODB_URI)."""
+import yaml
 
-from bson import ObjectId
-
-from demo.scenario import label, plan, run_demo
+from demo.scenario import compose_playbook, label, run_demo
+from engine.playbook_spec import load_playbook, topo_order
 from tests.engine_helpers import engine_db, requires_mongo  # noqa: F401
 
-CAMPAIGN = {"trigger": {"summary": "leak", "payload": {"access_key_id": "AKIAOLD", "user": "ci-deployer"}}, "config": {}}
+
+def test_compose_chains_playbooks_in_order():
+    path = compose_playbook(["rotate", "notify"])
+    combined = yaml.safe_load(path.read_text())
+    rotate, notify = load_playbook("rotate"), load_playbook("notify")
+
+    ids = [s["id"] for s in combined["steps"]]
+    assert ids == [s["id"] for s in rotate["steps"]] + [s["id"] for s in notify["steps"]]
+    by_id = {s["id"]: s for s in combined["steps"]}
+    assert by_id["notify_owner"]["depends_on"] == [topo_order(rotate)[-1]], "notify waits for the last rotate step"
+    assert "depends_on" not in by_id[rotate["steps"][0]["id"]], "the first playbook's root stays a root"
+    assert load_playbook(path)["name"] == "incident", "the composed file passes the engine's own validation"
+    assert topo_order(combined)[-1] == "notify_owner"
 
 
-def done(step, external_ref=None, item_key=""):
-    return {"_id": ObjectId(), "step_id": step, "item_key": item_key, "state": "verified", "external_ref": external_ref or {}}
-
-
-def steps(specs):
-    return [label(s) for s in specs]
-
-
-def test_plan_starts_with_discovery_only():
-    specs, complete = plan(CAMPAIGN, [])
-    assert steps(specs) == ["discover_consumers"] and complete is False
-
-
-def test_plan_fans_out_over_discovered_repos():
-    actions = [done("discover_consumers", {"consumers": ["acme/api", "acme/web"]}), done("create_new_key", {"access_key_id": "AKIANEW"})]
-    specs, _ = plan(CAMPAIGN, actions)
-    assert steps(specs) == ["discover_consumers", "create_new_key", "update_secret:acme/api", "update_secret:acme/web"]
-    update = specs[-1]
-    assert update["params"] == {"repo": "acme/web", "secret_name": "AWS_ACCESS_KEY_ID", "value": "AKIANEW"}
-    assert update["depends_on"] == [actions[1]["_id"]]
-
-
-def test_plan_does_not_revoke_while_a_consumer_is_unverified():
-    actions = [
-        done("discover_consumers", {"consumers": ["acme/api", "acme/web"]}),
-        done("create_new_key", {"access_key_id": "AKIANEW"}),
-        done("update_secret", item_key="acme/api"),
-        {**done("update_secret", item_key="acme/web"), "state": "sent"},  # crashed here
-    ]
-    assert "rediscover_consumers" not in steps(plan(CAMPAIGN, actions)[0])
-    assert "revoke_old" not in steps(plan(CAMPAIGN, actions)[0])
-
-
-def test_plan_picks_up_a_repo_discovered_mid_run_before_revoking():
-    actions = [
-        done("discover_consumers", {"consumers": ["acme/api"]}),
-        done("create_new_key", {"access_key_id": "AKIANEW"}),
-        done("update_secret", item_key="acme/api"),
-        done("rediscover_consumers", {"consumers": ["acme/mobile"]}),
-    ]
-    names = steps(plan(CAMPAIGN, actions)[0])
-    assert "update_late_consumers:acme/mobile" in names and "revoke_old" not in names
-
-    actions.append(done("update_late_consumers", item_key="acme/mobile"))
-    names = steps(plan(CAMPAIGN, actions)[0])
-    assert "revoke_old" in names and "notify_owner" not in names
-
-    actions.append(done("revoke_old"))
-    specs, complete = plan(CAMPAIGN, actions)
-    assert steps(specs)[-1] == "notify_owner" and complete is False
-    actions.append(done("notify_owner"))
-    assert plan(CAMPAIGN, actions)[1] is True
+def test_label_includes_the_fan_out_item():
+    assert label({"step_id": "update_secret", "item_key": "acme/web"}) == "update_secret:acme/web"
+    assert label({"step_id": "revoke_old", "item_key": ""}) == "revoke_old"
 
 
 @requires_mongo
 async def test_crash_mid_fan_out_recovers_with_no_duplicates(engine_db, tmp_path, monkeypatch):  # noqa: F811
-    """PRD §6: the naive baseline duplicates; the ledger run does not."""
-    monkeypatch.setenv("DEMO_PACE", "0")
+    """PRD §6: the naive baseline duplicates; the ledger run does not. Runs the
+    real worker process twice: killed mid fan-out, then restarted."""
     monkeypatch.setenv("NOTIFY_BACKEND", "spool")
     monkeypatch.setenv("NOTIFY_SPOOL_DIR", str(tmp_path / "mail"))
     monkeypatch.setattr("adapters.notify.adapter._mailbox", None)  # re-read the env above
@@ -75,8 +37,10 @@ async def test_crash_mid_fan_out_recovers_with_no_duplicates(engine_db, tmp_path
     report = await run_demo(quiet=True)
 
     assert report["ok"], report
+    assert report["campaign_state"] == "succeeded"
     assert report["all_verified"] and report["actions"] == 8
     assert report["recovered"] == ["update_secret:acme/web"]
     assert report["duplicates"] == 0 and all(e["count"] == 1 for e in report["effects"])
+    assert {e["id"] for e in report["effects"]} >= {"update_secret:acme/mobile", "notify_owner"}
     assert report["old_key_dead"] is True
     assert report["naive_duplicates"] == 3
