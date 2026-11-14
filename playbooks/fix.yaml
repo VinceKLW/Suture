@@ -25,6 +25,7 @@ steps:
       repo: "${campaign.trigger.repo}"
       title: "${draft_pr.result.title}"
       body: "${draft_pr.result.body}"
+      edits: "${draft_pr.result.edits}"            # real GitHub mode: the file change to commit
       head_sha: "${campaign.trigger.head_sha}"
       ci_result: "${campaign.trigger.ci_result}"   # demo-only preseed
 

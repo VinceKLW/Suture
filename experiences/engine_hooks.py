@@ -59,8 +59,10 @@ class ExperiencesAdapter:
             solution = r.get("solution_text", "")
             body = (f"Automated fix from a verified past incident (experience {r.get('_id')}).\n\n"
                     f"Past problem: {r.get('problem_text', '')}\n\nApplied fix: {solution}")
+            # A recalled fix may carry a concrete file edit (metadata.edits); real-mode open_pr applies it.
+            edits = (r.get("metadata") or {}).get("edits")
             return {"receipt": True, "external_ref": {"title": f"fix: {solution[:72]}", "body": body,
-                                                      "experience_id": r.get("_id")}}
+                                                      "experience_id": r.get("_id"), "edits": edits}}
         if op == "promote_atomic":
             # The embedding call is the slow external part; do it before the transaction.
             self._vectors[action_id] = await self.embed_fn(payload["problem_text"], payload["solution_text"])

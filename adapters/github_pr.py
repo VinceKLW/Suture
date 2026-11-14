@@ -7,13 +7,19 @@ Demo hook: set rename_mode=True on the module store to simulate GitHub
 renaming the CI status field from `status` to `conclusion`. verify() will
 then return `unknown` with the raw observed payload; model/mapping.py
 proposes a mapping and verify() is re-run with it.
+
+Real mode: repos listed in GITHUB_PR_REPOS (with GITHUB_TOKEN set) go to real
+GitHub through adapters/github_real.py: a real branch, commit and PR, and CI read
+from real check runs / commit statuses. Same idempotency contract, same rename hook.
 """
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
+from adapters import github_real as real
 from engine.adapter import ExecuteResult, LookupResult, VerifyResult
 
 
@@ -85,6 +91,8 @@ class GithubPrAdapter:
     async def execute(self, action_id: str, payload: dict) -> ExecuteResult:
         op = payload.get("operation") or payload.get("op") or "open_pr"
         repo_name = payload["repo"]
+        if real.is_real(repo_name):
+            return await self._execute_real(action_id, op, repo_name, payload)
         repo = store.repo(repo_name)
 
         if op == "open_pr":
@@ -133,6 +141,10 @@ class GithubPrAdapter:
         raise ValueError(f"Unknown github_pr operation: {op!r}")
 
     async def lookup(self, action_id: str) -> LookupResult:
+        if real.real_repos():
+            ref = await real.lookup(action_id)
+            if ref:
+                return {"exists": True, "external_ref": ref}
         # Scan all repos for a PR carrying this action_id (idempotency recovery).
         for repo_name, repo in store.repos.items():
             found = _find_pr_by_action(repo, action_id)
@@ -157,6 +169,8 @@ class GithubPrAdapter:
         # Direct calls without "operation" keep the original CI-green check.
         op = payload.get("operation") or payload.get("op")
         repo_name = payload["repo"]
+        if real.is_real(repo_name):
+            return await self._verify_real(action_id, op, repo_name, payload)
         repo = store.repo(repo_name)
         found = _locate_pr(repo, action_id, payload)
         if not found:
@@ -191,6 +205,56 @@ class GithubPrAdapter:
         if raw[expected_field] == "success":
             return {"outcome": "verified", "observed": raw}
         return {"outcome": "failed", "observed": raw}
+
+    # ---- real GitHub (repos in GITHUB_PR_REPOS) ------------------------------
+
+    async def _execute_real(self, action_id: str, op: str, repo_name: str, payload: dict) -> ExecuteResult:
+        if op == "open_pr":
+            ref = await real.open_pr(repo_name, action_id, payload.get("title") or "Recovery PR",
+                                     payload.get("body") or "", payload.get("edits"))
+            return {"external_ref": ref, "receipt": True}
+        if op == "wait_ci":
+            head_sha = payload["head_sha"]
+            # Real CI takes minutes, not the simulation's 5 s. Poll until it concludes or the real timeout.
+            timeout_s = max(float(payload.get("timeout_s", 0)), float(os.environ.get("GITHUB_CI_TIMEOUT_S", "240")))
+            waited, ci = 0.0, await real.ci_state(repo_name, head_sha)
+            while ci["state"] == "pending" and waited < timeout_s:
+                await asyncio.sleep(3)
+                waited += 3
+                ci = await real.ci_state(repo_name, head_sha)
+            return {"external_ref": {"repo": repo_name, "head_sha": head_sha, "ci": ci["state"]}, "receipt": True}
+        if op in ("verify", "check_ci"):
+            return {"external_ref": {"repo": repo_name, "head_sha": payload.get("head_sha")}, "receipt": True}
+        raise ValueError(f"Unknown github_pr operation: {op!r}")
+
+    async def _verify_real(self, action_id: str, op: str | None, repo_name: str, payload: dict) -> VerifyResult:
+        if op == "open_pr":
+            pr = await real.get_pr(repo_name, action_id)
+            if not pr:
+                return {"outcome": "failed", "observed": {"reason": "no PR on GitHub for this action"}}
+            ok = pr["head"]["ref"] == real.branch_name(action_id) and real.marker(action_id) in (pr.get("body") or "")
+            return {"outcome": "verified" if ok else "failed",
+                    "observed": {"pr_number": pr["number"], "url": pr["html_url"], "head_sha": pr["head"]["sha"]}}
+
+        head_sha = payload.get("head_sha")
+        if not head_sha:
+            pr = await real.latest_recovery_pr(repo_name)
+            if not pr:
+                return {"outcome": "failed", "observed": {"reason": "no recovery PR on GitHub"}}
+            head_sha = pr["head"]["sha"]
+        ci = await real.ci_state(repo_name, head_sha)
+        if ci["state"] == "pending":
+            return {"outcome": "unknown", "observed": {"ci": "pending", "head_sha": head_sha}}
+        if op == "wait_ci":
+            return {"outcome": "verified", "observed": {"ci_concluded": True, "head_sha": head_sha, **ci}}
+
+        # Same shape and same rename hook as the simulation, built from GitHub's real answer.
+        field = "conclusion" if store.rename_mode else "status"
+        raw = {field: ci["state"], "head_sha": head_sha, "checks": ci["checks"], "statuses": ci["statuses"]}
+        expected_field = payload.get("expected_field", store.expected_field)
+        if expected_field not in raw:
+            return {"outcome": "unknown", "observed": raw}
+        return {"outcome": "verified" if raw[expected_field] == "success" else "failed", "observed": raw}
 
 
 # Register at import so engine.adapter.get_adapter("github_pr") works.

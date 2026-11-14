@@ -21,7 +21,9 @@ from engine.models import utcnow
 SEEDS = [
     {"seed_id": "node-fetch-esm", "verified": True, "repo": "acme/api", "language": "javascript",
      "problem_text": "CI fails with ERR_REQUIRE_ESM: node-fetch v3 is ESM-only and breaks require() in a CommonJS build",
-     "solution_text": "Pin node-fetch to 2.6.7 in package.json (last CommonJS release) and regenerate the lockfile"},
+     "solution_text": "Pin node-fetch to 2.6.7 in package.json (last CommonJS release) and regenerate the lockfile",
+     # The concrete change, so the fix playbook can open a real PR with it (demo repo).
+     "edits": [{"path": "package.json", "json_set": {"dependencies.node-fetch": "2.6.7"}}]},
     {"seed_id": "pydantic-v2", "verified": True, "repo": "acme/worker", "language": "python",
      "problem_text": "Tests fail after dependency bump: pydantic v2 removed BaseSettings and .dict() is deprecated",
      "solution_text": "Pin pydantic<2 for now, or move BaseSettings imports to pydantic-settings and replace .dict() with .model_dump()"},
@@ -51,7 +53,7 @@ async def seed() -> int:
                 "outcome": "verified" if s["verified"] else "unknown", "verified": s["verified"],
                 "embedding": vec,
                 "metadata": {"seed_id": s["seed_id"], "repo": s["repo"], "language": s["language"],
-                             "created_at": utcnow()},
+                             "created_at": utcnow(), **({"edits": s["edits"]} if s.get("edits") else {})},
             }},
             upsert=True,
         )
