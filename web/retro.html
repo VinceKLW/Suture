@@ -24,9 +24,6 @@
   @media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } html.glass-lite #chatPanel, #chatPanel { position: static; height: 80vh; } }
   @media (max-width: 760px) { main { padding: 12px; } .topbar { margin: 12px 12px 0; } .topbar .tagline, #cid { display: none; } }
 
-  .src { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fog); }
-  .src i { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--fog)); }
-  .src.ledger { --c: var(--state-verified); } .src.model { --c: var(--dusk); }
 
   #summary > .glass-content { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
   #summary .top { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 24px; }
@@ -144,8 +141,7 @@
 
     <section class="glass panel" id="analysisPanel" hidden>
       <div class="glass-content">
-        <div class="panel-head"><div><div class="kicker">Retrospective</div><h2>What we learned</h2></div>
-          <span class="count"><span class="src model"><i></i>written by the model, citations checked</span></span></div>
+        <div class="panel-head"><div><div class="kicker">Retrospective</div><h2>What we learned</h2></div></div>
         <div id="analysis"></div>
       </div>
     </section>
