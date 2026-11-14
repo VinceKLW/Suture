@@ -45,10 +45,10 @@ BROKEN_DEP = '"node-fetch": "^3.3.2"'  # ESM-only under the demo repo's require(
 
 def _break_ci_mode() -> str | None:
     """The real repo "Start a campaign" breaks, or None to run the simulated compound demo.
-    On when a real repo is set up (GITHUB_TOKEN + GITHUB_PR_REPOS) and the webhook can hear
-    GitHub (GITHUB_WEBHOOK_SECRET); CHAOS_START=sim forces the old offline demo."""
+    Always, unless CHAOS_START=sim asks for the old offline demo. Needs GITHUB_TOKEN + GITHUB_PR_REPOS;
+    the incident itself opens when GitHub's webhook arrives (GITHUB_WEBHOOK_SECRET, SMEE_URL)."""
     from adapters import github_real
-    if os.environ.get("CHAOS_START", "break_ci") == "sim" or not os.environ.get("GITHUB_WEBHOOK_SECRET"):
+    if os.environ.get("CHAOS_START", "break_ci") == "sim":
         return None
     return next(iter(sorted(github_real.real_repos())), None)
 
@@ -111,7 +111,7 @@ class _Run:
 _run: _Run | None = None
 _setup_done = False
 _pending: dict | None = None  # CI broken by "Start a campaign", waiting for GitHub's webhook to open the incident
-PENDING_FOR = timedelta(minutes=10)
+PENDING_FOR = timedelta(minutes=3)
 
 
 def adopt(campaign_id: ObjectId) -> bool:
@@ -218,10 +218,11 @@ async def start():
     global _run, _pending
     if await _running(None):
         return JSONResponse({"error": "a campaign is already running", "campaign_id": str(_run.campaign_id)}, status_code=409)
-    repo = _break_ci_mode()
-    if repo:
-        if _pending_now():
-            return JSONResponse({"error": "CI is already broken; waiting for the webhook", **_pending_now()}, status_code=409)
+    if os.environ.get("CHAOS_START", "break_ci") != "sim":
+        repo = _break_ci_mode()
+        if not repo:
+            return JSONResponse({"error": "set GITHUB_TOKEN and GITHUB_PR_REPOS so Start can break the demo repo's CI"},
+                                status_code=503)
         try:
             commit = await break_ci(repo)
         except Exception as e:
